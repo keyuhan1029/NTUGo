@@ -25,15 +25,24 @@ interface GoogleUserInfo {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
 
+    // 輔助函數：構建絕對 URL
+    const getLoginUrl = (error?: string) => {
+      const url = new URL('/login', origin);
+      if (error) {
+        url.searchParams.set('error', error);
+      }
+      return url.toString();
+    };
+
     if (!code) {
-      return NextResponse.redirect('/login?error=no_code');
+      return NextResponse.redirect(getLoginUrl('no_code'));
     }
 
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-      return NextResponse.redirect('/login?error=oauth_not_configured');
+      return NextResponse.redirect(getLoginUrl('oauth_not_configured'));
     }
 
     // 1. 用 code 換取 access token
@@ -54,7 +63,7 @@ export async function GET(request: Request) {
     if (!tokenResponse.ok) {
       const error = await tokenResponse.text();
       console.error('Google token 交換失敗:', error);
-      return NextResponse.redirect('/login?error=token_exchange_failed');
+      return NextResponse.redirect(getLoginUrl('token_exchange_failed'));
     }
 
     const tokenData: GoogleTokenResponse = await tokenResponse.json();
@@ -70,13 +79,13 @@ export async function GET(request: Request) {
     );
 
     if (!userInfoResponse.ok) {
-      return NextResponse.redirect('/login?error=user_info_failed');
+      return NextResponse.redirect(getLoginUrl('user_info_failed'));
     }
 
     const googleUser: GoogleUserInfo = await userInfoResponse.json();
 
     if (!googleUser.verified_email) {
-      return NextResponse.redirect('/login?error=email_not_verified');
+      return NextResponse.redirect(getLoginUrl('email_not_verified'));
     }
 
     // 3. 查找或創建用戶
@@ -107,7 +116,7 @@ export async function GET(request: Request) {
 
     // 確保用戶存在
     if (!user) {
-      return NextResponse.redirect('/login?error=user_creation_failed');
+      return NextResponse.redirect(getLoginUrl('user_creation_failed'));
     }
 
     // 4. 生成 JWT token
@@ -120,6 +129,8 @@ export async function GET(request: Request) {
     // 5. 檢查用戶是否已設定 userId，如果沒有則重定向到設定頁面
     if (!user.userId) {
       // 創建一個臨時頁面來設置 token 並重定向到設定頁面
+      const setupUrl = new URL('/setup-userid', origin);
+      setupUrl.searchParams.set('token', token);
       const html = `
         <!DOCTYPE html>
         <html>
@@ -129,7 +140,7 @@ export async function GET(request: Request) {
           <body>
             <script>
               localStorage.setItem('token', '${token}');
-              window.location.href = '/setup-userid?token=${token}';
+              window.location.href = '${setupUrl.toString()}';
             </script>
           </body>
         </html>
@@ -142,6 +153,7 @@ export async function GET(request: Request) {
     }
 
     // 6. 如果已設定 userId，重定向到首頁
+    const homeUrl = new URL('/', origin);
     const html = `
       <!DOCTYPE html>
       <html>
@@ -151,7 +163,7 @@ export async function GET(request: Request) {
         <body>
           <script>
             localStorage.setItem('token', '${token}');
-            window.location.href = '/';
+            window.location.href = '${homeUrl.toString()}';
           </script>
         </body>
       </html>
@@ -164,7 +176,10 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Google OAuth 錯誤:', error);
-    return NextResponse.redirect('/login?error=oauth_error');
+    const { origin } = new URL(request.url);
+    const loginUrl = new URL('/login', origin);
+    loginUrl.searchParams.set('error', 'oauth_error');
+    return NextResponse.redirect(loginUrl.toString());
   }
 }
 
