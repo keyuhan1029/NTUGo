@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -8,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import CircularProgress from '@mui/material/CircularProgress';
 import MainLayout from '@/components/Layout/MainLayout';
 import MapComponent from '@/components/Map/MapComponent';
 
@@ -41,6 +43,65 @@ function OverlayCard({ title, items }: { title: string; items: string[] }) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          // Token 無效，清除並重定向
+          localStorage.removeItem('token');
+          router.push('/login');
+          return;
+        }
+
+        // 認證成功
+        setIsAuthenticated(true);
+      } catch (error) {
+        // 發生錯誤，清除 token 並重定向
+        localStorage.removeItem('token');
+        router.push('/login');
+      }
+    };
+
+    checkAuth();
+  }, [router]);
+
+  // 顯示載入中或未認證時不顯示內容
+  if (isAuthenticated === null) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          width: '100vw',
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // 重定向中，不顯示內容
+  }
+
   return (
     <MainLayout>
       {/* Map Background */}
