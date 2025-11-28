@@ -71,6 +71,14 @@ export default function Sidebar() {
     setOpen(!open);
   };
 
+  const handleMouseEnter = () => {
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    setOpen(false);
+  };
+
   const handleYouBikeClick = () => {
     setShowYouBikeStations(!showYouBikeStations);
   };
@@ -88,7 +96,12 @@ export default function Sidebar() {
   ];
 
   return (
-    <Drawer variant="permanent" open={open}>
+    <Drawer 
+      variant="permanent" 
+      open={open}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <List sx={{ pt: 1 }}>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
