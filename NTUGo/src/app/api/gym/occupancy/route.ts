@@ -77,44 +77,79 @@ export async function GET() {
       lastUpdated,
     };
 
-    // 方法1: 嘗試使用 ICI class 元素
-    const iciElements = $('div.ICI');
-    const numbers: number[] = [];
-
-    if (iciElements.length > 0) {
-      iciElements.each((_, element) => {
-        const spanText = $(element).find('span').text().trim();
-        const num = parseInt(spanText);
-        if (!isNaN(num)) {
-          numbers.push(num);
+    // 方法1: 使用 CMCItem 結構解析（新結構）
+    const cmcItems = $('div.CMCItem');
+    
+    if (cmcItems.length > 0) {
+      cmcItems.each((_, item) => {
+        const itemText = $(item).text();
+        const iciElements = $(item).find('div.ICI');
+        const numbers: number[] = [];
+        
+        iciElements.each((_, element) => {
+          const spanText = $(element).find('span').text().trim();
+          const num = parseInt(spanText);
+          if (!isNaN(num)) {
+            numbers.push(num);
+          }
+        });
+        
+        // 根據 IT 文字判斷是哪個場地
+        if (itemText.includes('健身中心') && numbers.length >= 3) {
+          occupancy.fitnessCenter = {
+            current: numbers[0], // 現在人數
+            optimal: numbers[1], // 最適人數
+            max: numbers[2],      // 最大乘載人數
+          };
+        } else if (itemText.includes('室內游泳池') && numbers.length >= 3) {
+          occupancy.swimmingPool = {
+            current: numbers[0], // 現在人數
+            optimal: numbers[1], // 最適人數
+            max: numbers[2],      // 最大乘載人數
+          };
         }
       });
+    }
+    
+    // 方法1b: 如果 CMCItem 方法失敗（max 都是 0），嘗試使用 ICI class 元素（舊方法）
+    if (occupancy.fitnessCenter.max === 0 && occupancy.swimmingPool.max === 0) {
+      const iciElements = $('div.ICI');
+      const numbers: number[] = [];
 
-      // 如果有 6 個數字，按順序分配
-      if (numbers.length >= 6) {
-        occupancy.fitnessCenter = {
-          current: numbers[0],
-          optimal: numbers[1],
-          max: numbers[2],
-        };
-        occupancy.swimmingPool = {
-          current: numbers[3],
-          optimal: numbers[4],
-          max: numbers[5],
-        };
+      if (iciElements.length > 0) {
+        iciElements.each((_, element) => {
+          const spanText = $(element).find('span').text().trim();
+          const num = parseInt(spanText);
+          if (!isNaN(num)) {
+            numbers.push(num);
+          }
+        });
+
+        // 如果有 6 個數字，按順序分配
+        if (numbers.length >= 6) {
+          occupancy.fitnessCenter = {
+            current: numbers[0],
+            optimal: numbers[1],
+            max: numbers[2],
+          };
+          occupancy.swimmingPool = {
+            current: numbers[3],
+            optimal: numbers[4],
+            max: numbers[5],
+          };
+        }
       }
     }
 
-    // 方法2: 如果 ICI 方法失敗，使用文字匹配
-    if (occupancy.fitnessCenter.current === 0 && occupancy.swimmingPool.current === 0) {
+    // 方法2: 如果前面的方法都失敗（max 都是 0），使用文字匹配
+    if (occupancy.fitnessCenter.max === 0 && occupancy.swimmingPool.max === 0) {
       const bodyText = $('body').text();
       occupancy.fitnessCenter = extractNumbersFromText(bodyText, '健身中心');
       occupancy.swimmingPool = extractNumbersFromText(bodyText, '室內游泳池');
     }
 
-    // 檢查是否有有效數據
-    const hasValidData = (occupancy.fitnessCenter.current > 0 || occupancy.swimmingPool.current > 0) &&
-                         (occupancy.fitnessCenter.max > 0 || occupancy.swimmingPool.max > 0);
+    // 檢查是否有有效數據（只要 max > 0 就表示有有效數據，current 可以是 0）
+    const hasValidData = (occupancy.fitnessCenter.max > 0 || occupancy.swimmingPool.max > 0);
 
     if (!hasValidData) {
       return NextResponse.json(
