@@ -321,24 +321,7 @@ export default function MapComponent() {
         />
       ))}
 
-      {/* Bus Pins (模擬資料) */}
-      {LOCATIONS.bus.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
-          icon={{
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#2196f3',
-            fillOpacity: 1,
-            scale: 8,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-          }}
-        />
-      ))}
-
-      {/* 公車站牌標記 (從 API 獲取，顯示在地圖範圍內) */}
+      {/* 公車站牌標記 (從 API 獲取，顯示在地圖範圍內) - 只有點擊左側公車圖示時才顯示 */}
       {showBusStops &&
         visibleBusStops.map((stop) => (
           <MarkerF
@@ -489,60 +472,137 @@ export default function MapComponent() {
                     
                     {busRealTimeInfo.length > 0 ? (
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                          即時到站資訊：
-                        </Typography>
-                        {busRealTimeInfo.slice(0, 5).map((info, index) => {
-                          const estimateMinutes = info.EstimateTime 
-                            ? Math.floor(info.EstimateTime / 60) 
-                            : null;
-                          const statusText = 
-                            info.StopStatus === 0 ? '即將進站' :
-                            info.StopStatus === 1 ? '尚未發車' :
-                            info.StopStatus === 2 ? '交管不停靠' :
-                            info.StopStatus === 3 ? '末班車已過' :
-                            info.StopStatus === 4 ? '今日未營運' : '未知';
-                          
-                          return (
-                            <Box 
-                              key={index} 
-                              sx={{ 
-                                mb: 1, 
-                                p: 1, 
-                                bgcolor: 'rgba(33, 150, 243, 0.1)', 
-                                borderRadius: 1,
-                                borderLeft: '3px solid #2196f3'
-                              }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                {info.RouteName.Zh_tw}
-                                {info.Direction === 0 ? ' (去程)' : ' (返程)'}
-                              </Typography>
-                              {estimateMinutes !== null && estimateMinutes >= 0 ? (
-                                <Typography variant="body2" color="text.secondary">
-                                  預估 {estimateMinutes} 分鐘後到站
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {statusText}
-                                </Typography>
-                              )}
-                              {info.PlateNumb && (
-                                <Typography variant="caption" color="text.secondary">
-                                  車牌：{info.PlateNumb}
-                                </Typography>
-                              )}
-                            </Box>
-                          );
-                        })}
-                        {busRealTimeInfo.length > 5 && (
-                          <Typography variant="caption" color="text.secondary">
-                            還有 {busRealTimeInfo.length - 5} 班公車...
-                          </Typography>
-                        )}
+                        {(() => {
+                          // 按路線分組（RouteUID + Direction）
+                          const groupedByRoute = new Map<string, BusRealTimeInfo[]>();
+                          busRealTimeInfo.forEach((info) => {
+                            const routeKey = `${info.RouteUID}-${info.Direction}`;
+                            if (!groupedByRoute.has(routeKey)) {
+                              groupedByRoute.set(routeKey, []);
+                            }
+                            groupedByRoute.get(routeKey)!.push(info);
+                          });
+
+                          // 將每條路線的班次按到站時間排序
+                          const sortedRoutes = Array.from(groupedByRoute.entries()).map(([routeKey, buses]) => {
+                            const sortedBuses = [...buses].sort((a, b) => {
+                              const timeA = a.EstimateTime ?? Infinity;
+                              const timeB = b.EstimateTime ?? Infinity;
+                              return timeA - timeB;
+                            });
+                            return {
+                              routeKey,
+                              routeName: buses[0].RouteName.Zh_tw,
+                              direction: buses[0].Direction,
+                              buses: sortedBuses,
+                            };
+                          });
+
+                          // 按第一班車的到站時間排序路線
+                          sortedRoutes.sort((a, b) => {
+                            const timeA = a.buses[0]?.EstimateTime ?? Infinity;
+                            const timeB = b.buses[0]?.EstimateTime ?? Infinity;
+                            return timeA - timeB;
+                          });
+
+                          return sortedRoutes.map((route) => {
+                            const firstBus = route.buses[0];
+                            const estimateMinutes = firstBus.EstimateTime 
+                              ? Math.floor(firstBus.EstimateTime / 60) 
+                              : null;
+                            
+                            const statusText = 
+                              firstBus.StopStatus === 0 ? '即將進站' :
+                              firstBus.StopStatus === 1 ? '尚未發車' :
+                              firstBus.StopStatus === 2 ? '交管不停靠' :
+                              firstBus.StopStatus === 3 ? '末班駛離' :
+                              firstBus.StopStatus === 4 ? '今日停駛' : '未知';
+
+                            const directionText = route.direction === 0 
+                              ? (firstBus.RouteName?.Zh_tw?.includes('往') ? '' : '往') 
+                              : (firstBus.RouteName?.Zh_tw?.includes('往') ? '' : '往');
+                            
+                            return (
+                              <Box
+                                key={route.routeKey}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  py: 1.25,
+                                  borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+                                  '&:last-child': {
+                                    borderBottom: 'none'
+                                  }
+                                }}
+                              >
+                                {/* 左側時間/狀態標籤 */}
+                                <Box
+                                  sx={{
+                                    minWidth: 70,
+                                    height: 28,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    bgcolor: estimateMinutes !== null && estimateMinutes >= 0 
+                                      ? '#8B4513'  // 深棕色（有時間）
+                                      : '#9E9E9E', // 灰色（無時間）
+                                    color: '#ffffff',
+                                    borderRadius: 0.5,
+                                    fontSize: '0.8rem',
+                                    fontWeight: 500,
+                                    mr: 1.5,
+                                    px: 1
+                                  }}
+                                >
+                                  {estimateMinutes !== null && estimateMinutes >= 0 
+                                    ? `${estimateMinutes}分`
+                                    : statusText
+                                  }
+                                </Box>
+
+                                {/* 中間路線資訊 */}
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 400,
+                                      color: '#000000',
+                                      lineHeight: 1.4
+                                    }}
+                                  >
+                                    {route.routeName} {route.direction === 0 ? '- 去程' : '- 返程'}
+                                  </Typography>
+                                </Box>
+
+                                {/* 右側車牌號碼（如果有） */}
+                                {firstBus.PlateNumb && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      fontSize: '0.7rem',
+                                      color: 'rgba(0, 0, 0, 0.5)',
+                                      ml: 1
+                                    }}
+                                  >
+                                    {firstBus.PlateNumb}
+                                  </Typography>
+                                )}
+                              </Box>
+                            );
+                          });
+                        })()}
                       </Box>
                     ) : !busRealTimeLoading && (
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography 
+                        variant="body2" 
+                        color="text.secondary"
+                        sx={{ 
+                          textAlign: 'center',
+                          py: 2,
+                          fontSize: '0.875rem'
+                        }}
+                      >
                         目前無公車資訊
                       </Typography>
                     )}
