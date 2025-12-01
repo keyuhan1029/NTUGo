@@ -93,8 +93,6 @@ export async function fetchBusStopsNearNTU(): Promise<BusStop[]> {
     cachedBusStops = stops;
     cacheTimestamp = now;
 
-    console.log(`成功載入 ${stops.length} 個公車站牌`);
-
     return stops;
   } catch (error) {
     console.error('獲取公車站牌資料失敗:', error);
@@ -149,19 +147,6 @@ export async function fetchBusRealTimeInfo(stopUID: string): Promise<BusRealTime
 
     const data = await response.json();
     const realTimeInfo: BusRealTimeInfo[] = data.BusRealTimeInfos || [];
-
-    // 調試：查看返回的數據
-    console.log(`[Bus API] 站牌 ${stopUID} 返回 ${realTimeInfo.length} 筆資料`);
-    if (realTimeInfo.length > 0) {
-      console.log('[Bus API] 第一筆資料:', realTimeInfo[0]);
-      // 檢查是否有重複的路線
-      const routeCounts = new Map<string, number>();
-      realTimeInfo.forEach((info) => {
-        const key = `${info.RouteUID}-${info.Direction}`;
-        routeCounts.set(key, (routeCounts.get(key) || 0) + 1);
-      });
-      console.log('[Bus API] 路線統計:', Array.from(routeCounts.entries()));
-    }
 
     cachedRealTimeInfo.set(cacheKey, realTimeInfo);
     cacheTimestamp = now;

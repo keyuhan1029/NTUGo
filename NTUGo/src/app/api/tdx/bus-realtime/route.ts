@@ -84,62 +84,6 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     const busData = Array.isArray(data) ? data : [];
 
-    // 調試：查看返回的數據結構
-    console.log(`[API] EstimatedTimeOfArrival 返回 ${busData.length} 筆資料`);
-    
-    if (busData.length > 0) {
-      console.log(`[API] 第一筆資料範例:`, JSON.stringify(busData[0], null, 2));
-      
-      // 檢查路線統計
-      const routeCounts = new Map<string, number>();
-      const routesWithTime = new Set<string>();
-      busData.forEach((bus) => {
-        const routeKey = `${bus.RouteUID || bus.RouteID}-${bus.Direction || 0}`;
-        routeCounts.set(routeKey, (routeCounts.get(routeKey) || 0) + 1);
-        
-        // 檢查是否有 EstimateTime（可能為 undefined）
-        const hasEstimateTime = bus.EstimateTime !== null && 
-                               bus.EstimateTime !== undefined && 
-                               typeof bus.EstimateTime === 'number' &&
-                               bus.EstimateTime >= 0;
-        if (hasEstimateTime) {
-          routesWithTime.add(routeKey);
-        }
-      });
-      
-      console.log(`[API] 路線統計（共 ${routeCounts.size} 條不同路線）:`, Array.from(routeCounts.entries()));
-      console.log(`[API] 有到站時間的路線: ${routesWithTime.size} 條`);
-      console.log(`[API] 無到站時間的路線（末班車已過等）: ${routeCounts.size - routesWithTime.size} 條`);
-      
-      // 顯示每條路線的名稱和狀態
-      const uniqueRoutes = new Map<string, { name: string; hasTime: boolean; status: number }>();
-      busData.forEach((bus) => {
-        const routeKey = `${bus.RouteUID || bus.RouteID}-${bus.Direction || 0}`;
-        if (!uniqueRoutes.has(routeKey)) {
-          const hasEstimateTime = bus.EstimateTime !== null && 
-                                 bus.EstimateTime !== undefined && 
-                                 typeof bus.EstimateTime === 'number' &&
-                                 bus.EstimateTime >= 0;
-          uniqueRoutes.set(routeKey, {
-            name: bus.RouteName?.Zh_tw || '未知路線',
-            hasTime: hasEstimateTime,
-            status: bus.StopStatus ?? -1
-          });
-        }
-      });
-      console.log(`[API] 路線列表:`, Array.from(uniqueRoutes.entries()).map(([key, info]) => {
-        const bus = busData.find(b => `${b.RouteUID || b.RouteID}-${b.Direction || 0}` === key);
-        const timeText = info.hasTime && bus?.EstimateTime 
-          ? `預估 ${Math.floor(bus.EstimateTime / 60)} 分鐘` 
-          : info.status === 3 ? '末班車已過' 
-          : info.status === 4 ? '今日未營運' 
-          : '狀態未知';
-        return `${info.name} (${key}) - ${timeText}`;
-      }));
-    } else {
-      console.log(`[API] 站牌 ${stopUID} 目前沒有任何路線有實時數據`);
-    }
-
     return NextResponse.json({ BusRealTimeInfos: busData });
   } catch (error: any) {
     console.error('獲取公車即時資訊失敗:', error);

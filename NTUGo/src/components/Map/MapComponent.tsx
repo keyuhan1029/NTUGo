@@ -517,10 +517,6 @@ export default function MapComponent() {
                               firstBus.StopStatus === 2 ? '交管不停靠' :
                               firstBus.StopStatus === 3 ? '末班駛離' :
                               firstBus.StopStatus === 4 ? '今日停駛' : '未知';
-
-                            const directionText = route.direction === 0 
-                              ? (firstBus.RouteName?.Zh_tw?.includes('往') ? '' : '往') 
-                              : (firstBus.RouteName?.Zh_tw?.includes('往') ? '' : '往');
                             
                             return (
                               <Box
