@@ -16,7 +16,9 @@
     "@react-google-maps/api": "^2.20.7",
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.21.0",
@@ -26,10 +28,13 @@
     "react-dom": "19.2.0"
   },
   "devDependencies": {
+    "@types/cheerio": "^1.0.0",
     "@types/google.maps": "^3.58.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/webidl-conversions": "^7.0.3",
+    "@types/whatwg-url": "^13.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.4",
     "typescript": "^5"

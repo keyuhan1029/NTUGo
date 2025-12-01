@@ -116,5 +116,52 @@ export class UserModel {
     );
     return (result as User) || null;
   }
+
+  static async updateProfile(
+    userId: string | ObjectId,
+    updateData: {
+      name?: string;
+      avatar?: string;
+      userId?: string;
+    }
+  ): Promise<User | null> {
+    const db = await getDatabase();
+    const { ObjectId } = await import('mongodb');
+    
+    // 如果提供 userId，檢查是否已被其他用戶使用
+    if (updateData.userId) {
+      const existingUser = await db.collection<User>('users').findOne({ 
+        userId: updateData.userId,
+        _id: { $ne: typeof userId === 'string' ? new ObjectId(userId) : userId }
+      });
+      if (existingUser) {
+        throw new Error('此用戶 ID 已被使用');
+      }
+    }
+
+    const queryId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+    const updateFields: any = {
+      updatedAt: new Date(),
+    };
+
+    if (updateData.name !== undefined) {
+      updateFields.name = updateData.name;
+    }
+    if (updateData.avatar !== undefined) {
+      updateFields.avatar = updateData.avatar;
+    }
+    if (updateData.userId !== undefined) {
+      updateFields.userId = updateData.userId;
+    }
+
+    const result = await db.collection<User>('users').findOneAndUpdate(
+      { _id: queryId },
+      {
+        $set: updateFields,
+      },
+      { returnDocument: 'after' }
+    );
+    return (result as User) || null;
+  }
 }
 

@@ -13,6 +13,8 @@ import DirectionsBusIcon from '@mui/icons-material/DirectionsBus';
 import PedalBikeIcon from '@mui/icons-material/PedalBike';
 import DirectionsSubwayIcon from '@mui/icons-material/DirectionsSubway';
 import ForumIcon from '@mui/icons-material/Forum';
+import SchoolIcon from '@mui/icons-material/School';
+import EmailIcon from '@mui/icons-material/Email';
 import { useMapContext } from '@/contexts/MapContext';
 
 const drawerWidth = 240;
@@ -87,12 +89,22 @@ export default function Sidebar() {
     setShowBusStops(!showBusStops);
   };
 
+  const handleNTUCOOLClick = () => {
+    window.open('https://cool.ntu.edu.tw/login/portal?message=%E5%9C%A8%E6%82%A8%E7%9A%84%20IdP%20%E7%99%BB%E5%87%BA%E6%99%82%E5%87%BA%E7%8F%BE%E5%95%8F%E9%A1%8C', '_blank');
+  };
+
+  const handleNTUMailClick = () => {
+    window.open('https://wmail1.cc.ntu.edu.tw/rc/index.php', '_blank');
+  };
+
   const menuItems = [
     { text: '目錄', icon: <MenuIcon />, action: handleDrawerToggle, active: false },
     { text: '公車', icon: <DirectionsBusIcon />, action: handleBusClick, active: showBusStops },
     { text: 'YouBike', icon: <PedalBikeIcon />, action: handleYouBikeClick, active: showYouBikeStations },
     { text: '捷運', icon: <DirectionsSubwayIcon />, active: false },
     { text: '論壇', icon: <ForumIcon />, active: false },
+    { text: 'NTU COOL', icon: <SchoolIcon />, action: handleNTUCOOLClick, active: false },
+    { text: 'NTU Mail', icon: <EmailIcon />, action: handleNTUMailClick, active: false },
   ];
 
   return (

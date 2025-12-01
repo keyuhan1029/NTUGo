@@ -7,9 +7,11 @@ import IconButton from '@mui/material/IconButton';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import Tooltip from '@mui/material/Tooltip';
 import ProfileModal from '@/components/Auth/ProfileModal';
+import EditProfileModal from '@/components/Auth/EditProfileModal';
 
 export default function TopBar() {
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
+  const [editProfileModalOpen, setEditProfileModalOpen] = React.useState(false);
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
   const [userInitial, setUserInitial] = React.useState<string>('U');
 
@@ -50,8 +52,39 @@ export default function TopBar() {
   };
 
   const handleEditProfile = () => {
-    // TODO: 導航到編輯個人資料頁面
-    console.log('編輯個人資料');
+    setEditProfileModalOpen(true);
+  };
+
+  const handleProfileUpdate = () => {
+    // 重新載入用戶資訊以更新頭像
+    const loadUserInfo = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const response = await fetch('/api/auth/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.user) {
+              if (data.user.avatar) {
+                setUserAvatar(data.user.avatar);
+              }
+              if (data.user.name) {
+                setUserInitial(data.user.name[0].toUpperCase());
+              } else if (data.user.email) {
+                setUserInitial(data.user.email[0].toUpperCase());
+              }
+            }
+          }
+        } catch (error) {
+          // 靜默失敗，使用默認值
+        }
+      }
+    };
+    loadUserInfo();
   };
 
   return (
@@ -93,6 +126,11 @@ export default function TopBar() {
         open={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
         onEditProfile={handleEditProfile}
+      />
+      <EditProfileModal
+        open={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+        onUpdate={handleProfileUpdate}
       />
     </>
   );

@@ -3,10 +3,12 @@
 import * as React from 'react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import { NTU_CENTER, LOCATIONS } from '@/data/mockData';
+import InfoWindowHeader from './InfoWindowHeader';
+import InfoWindowContent from './InfoWindowContent';
+import CurrentLocationButton from './CurrentLocationButton';
 import {
   fetchYouBikeStations,
   findStationByName,
@@ -112,6 +114,32 @@ export default function MapComponent() {
   const [selectedBusStop, setSelectedBusStop] = React.useState<BusStop | null>(null);
   const [busRealTimeInfo, setBusRealTimeInfo] = React.useState<BusRealTimeInfo[]>([]);
   const [busRealTimeLoading, setBusRealTimeLoading] = React.useState<boolean>(false);
+  
+  // 當前位置相關 state
+  const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = React.useState<string | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = React.useState<boolean>(false);
+  
+  // 體育館人數相關 state
+  const [gymOccupancy, setGymOccupancy] = React.useState<{
+    fitnessCenter: { current: number; optimal: number; max: number };
+    swimmingPool: { current: number; optimal: number; max: number };
+    status: string;
+    totalCurrent: number;
+    totalMax: number;
+    lastUpdated: string;
+  } | null>(null);
+  const [gymLoading, setGymLoading] = React.useState<boolean>(false);
+  const [gymError, setGymError] = React.useState<string | null>(null);
+
+  // 圖書館資訊相關 state
+  const [libraryInfo, setLibraryInfo] = React.useState<{
+    openingHours: { today: string; status: string; hours: string };
+    studyRoom: { occupied: number; available: number; total: number };
+    lastUpdated: string;
+  } | null>(null);
+  const [libraryLoading, setLibraryLoading] = React.useState<boolean>(false);
+  const [libraryError, setLibraryError] = React.useState<string | null>(null);
 
   const onLoad = React.useCallback(function callback(map: google.maps.Map) {
     setMap(map);
@@ -121,14 +149,183 @@ export default function MapComponent() {
     setMap(null);
   }, []);
 
-  // 載入 YouBike 站點資料
+  // 獲取當前位置
+  const getCurrentLocation = React.useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationError('您的瀏覽器不支援地理定位功能');
+      return;
+    }
+
+    setIsGettingLocation(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocation(location);
+        setIsGettingLocation(false);
+
+        // 將地圖中心移動到當前位置
+        if (map) {
+          map.setCenter(location);
+          map.setZoom(17);
+        }
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError('已拒絕地理定位權限，請在瀏覽器設定中允許位置存取');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocationError('無法取得位置資訊');
+            break;
+          case error.TIMEOUT:
+            setLocationError('取得位置資訊逾時');
+            break;
+          default:
+            setLocationError('取得位置資訊時發生錯誤');
+            break;
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  }, [map]);
+
+  // 返回當前位置
+  const returnToCurrentLocation = React.useCallback(() => {
+    if (currentLocation && map) {
+      map.setCenter(currentLocation);
+      map.setZoom(17);
+    } else {
+      getCurrentLocation();
+    }
+  }, [currentLocation, map, getCurrentLocation]);
+
+  // 獲取體育館人數資訊
+  const fetchGymOccupancy = React.useCallback(async () => {
+    try {
+      setGymLoading(true);
+      setGymError(null);
+      setGymOccupancy(null); // 清除舊數據
+      
+      const response = await fetch('/api/gym/occupancy');
+      
+      // 檢查 HTTP 狀態碼
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setGymError(errorData.message || `服務器錯誤 (${response.status})`);
+        setGymOccupancy(null);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('體育館人數 API 響應:', data);
+      
+      if (data.success && data.data) {
+        setGymOccupancy({
+          ...data.data,
+          status: data.status,
+          totalCurrent: data.totalCurrent,
+          totalMax: data.totalMax,
+        });
+        setGymError(null); // 清除錯誤
+      } else {
+        setGymError(data.message || '無法獲取體育館人數資訊');
+        setGymOccupancy(null);
+      }
+    } catch (error: any) {
+      console.error('獲取體育館人數資訊失敗:', error);
+      setGymError(error.message || '獲取體育館人數資訊時發生錯誤，請稍後再試');
+      setGymOccupancy(null);
+    } finally {
+      setGymLoading(false);
+    }
+  }, []);
+
+  // 獲取圖書館資訊
+  const fetchLibraryInfo = React.useCallback(async () => {
+    try {
+      setLibraryLoading(true);
+      setLibraryError(null);
+      setLibraryInfo(null); // 清除舊數據
+      
+      const response = await fetch('/api/library/info');
+      
+      // 檢查 HTTP 狀態碼
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setLibraryError(errorData.message || `服務器錯誤 (${response.status})`);
+        setLibraryInfo(null);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('圖書館資訊 API 響應:', data);
+      
+      if (data.success && data.data) {
+        setLibraryInfo(data.data);
+        setLibraryError(null); // 清除錯誤
+      } else {
+        setLibraryError(data.message || '無法獲取圖書館資訊');
+        setLibraryInfo(null);
+      }
+    } catch (error: any) {
+      console.error('獲取圖書館資訊失敗:', error);
+      setLibraryError(error.message || '獲取圖書館資訊時發生錯誤，請稍後再試');
+      setLibraryInfo(null);
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
+
+  // 計算兩點間距離（公里）- 使用 Haversine 公式
+  const calculateDistance = React.useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371; // 地球半徑（公里）
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }, []);
+
+  // 台大圖書館座標
+  const libraryLocation = React.useMemo(() => ({
+    lat: 25.0175,
+    lng: 121.539,
+  }), []);
+
+  // 載入 YouBike 站點資料（只載入台大圖書館2公里內的站點）
   React.useEffect(() => {
     const loadYouBikeStations = async () => {
       try {
         setYoubikeLoading(true);
         setYoubikeError(null);
         const stations = await fetchYouBikeStations();
-        setYoubikeStations(stations);
+        
+        // 過濾出距離台大圖書館2公里內的站點
+        const nearbyStations = stations.filter((station) => {
+          const distance = calculateDistance(
+            libraryLocation.lat,
+            libraryLocation.lng,
+            station.lat,
+            station.lng
+          );
+          return distance <= 1; // 2公里
+        }); 
+        
+        setYoubikeStations(nearbyStations);
       } catch (error) {
         console.error('載入 YouBike 資料失敗:', error);
         setYoubikeError('無法載入 YouBike 站點資料');
@@ -140,7 +337,7 @@ export default function MapComponent() {
     if (isLoaded) {
       loadYouBikeStations();
     }
-  }, [isLoaded]);
+  }, [isLoaded, calculateDistance, libraryLocation]);
 
   // 載入公車站牌資料
   React.useEffect(() => {
@@ -170,6 +367,7 @@ export default function MapComponent() {
   }, [isLoaded, showBusStops]);
 
   // 當 showYouBikeStations 或地圖範圍變化時，更新可見站點
+  // 注意：youbikeStations 已經過濾為台大圖書館2公里內的站點
   React.useEffect(() => {
     if (!map) return;
 
@@ -177,6 +375,7 @@ export default function MapComponent() {
       if (showYouBikeStations && youbikeStations.length > 0) {
         const bounds = map.getBounds();
         if (bounds) {
+          // 只顯示在地圖視窗內且已在2公里範圍內的站點
           const visible = youbikeStations.filter((station) => {
             const latLng = new google.maps.LatLng(station.lat, station.lng);
             return bounds.contains(latLng);
@@ -287,6 +486,17 @@ export default function MapComponent() {
     }
   }, [youbikeStations]);
 
+  const handleCloseInfoWindow = React.useCallback(() => {
+    setSelectedMarker(null);
+    setSelectedYouBikeStation(null);
+    setSelectedBusStop(null);
+    setBusRealTimeInfo([]);
+    setGymOccupancy(null);
+    setGymError(null);
+    setLibraryInfo(null);
+    setLibraryError(null);
+  }, []);
+
   if (!isLoaded) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
@@ -296,6 +506,40 @@ export default function MapComponent() {
   }
 
   return (
+    <>
+      {/* 返回當前位置按鈕 */}
+      <CurrentLocationButton
+        currentLocation={currentLocation}
+        isGettingLocation={isGettingLocation}
+        onGetLocation={getCurrentLocation}
+        onReturnToLocation={returnToCurrentLocation}
+      />
+
+      {/* 位置錯誤提示 */}
+      {locationError && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 80,
+            left: 16,
+            right: 16,
+            zIndex: 1100,
+            maxWidth: 400,
+          }}
+        >
+          <Alert
+            severity="warning"
+            onClose={() => setLocationError(null)}
+            sx={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {locationError}
+          </Alert>
+        </Box>
+      )}
+
     <GoogleMap
       mapContainerStyle={containerStyle}
       center={NTU_CENTER}
@@ -305,7 +549,7 @@ export default function MapComponent() {
       options={mapOptions}
     >
       {/* Food Pins */}
-      {LOCATIONS.food.map((item) => (
+      {(LOCATIONS.food as any[]).length > 0 && LOCATIONS.food.map((item) => (
         <MarkerF
           key={item.id}
           position={{ lat: item.lat, lng: item.lng }}
@@ -322,7 +566,7 @@ export default function MapComponent() {
       ))}
 
       {/* Bus Pins (模擬資料) */}
-      {LOCATIONS.bus.map((item) => (
+      {(LOCATIONS.bus as any[]).length > 0 && LOCATIONS.bus.map((item) => (
         <MarkerF
           key={item.id}
           position={{ lat: item.lat, lng: item.lng }}
@@ -425,7 +669,17 @@ export default function MapComponent() {
         <MarkerF
           key={item.id}
           position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
+          onClick={() => {
+            setSelectedMarker(item);
+            // 如果是體育館，獲取人數資訊
+            if (item.type === 'gym') {
+              fetchGymOccupancy();
+            }
+            // 如果是圖書館，獲取圖書館資訊
+            if (item.type === 'library') {
+              fetchLibraryInfo();
+            }
+          }}
           icon={{
             path: 'M12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
             fillColor: '#9c27b0',
@@ -440,195 +694,57 @@ export default function MapComponent() {
       {selectedMarker && (
         <InfoWindowF
           position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
-          onCloseClick={() => {
-            setSelectedMarker(null);
-            setSelectedYouBikeStation(null);
-            setSelectedBusStop(null);
-            setBusRealTimeInfo([]);
+          options={{
+            pixelOffset: new google.maps.Size(0, 0),
+            disableAutoPan: false,
           }}
+          onCloseClick={handleCloseInfoWindow}
         >
-          <Box sx={{ p: 1, minWidth: 250, maxWidth: 350 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-              {selectedMarker.name}
-            </Typography>
-            
-            {selectedMarker.type === 'bus' && (
-              <Box>
-                {busRealTimeLoading && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CircularProgress size={16} />
-                    <Typography variant="body2" color="text.secondary">
-                      載入中...
-                    </Typography>
-                  </Box>
-                )}
-                
-                {busError && !busRealTimeInfo.length && (
-                  <Alert severity="info" sx={{ mb: 1, fontSize: '0.75rem', py: 0.5 }}>
-                    {busError.includes('API Key') ? (
-                      <>
-                        需要設定 TDX API Key 才能顯示公車資訊
-                        <br />
-                        <Typography variant="caption" component="span">
-                          請在 .env.local 中設定 TDX_CLIENT_ID 和 TDX_CLIENT_SECRET
-                        </Typography>
-                      </>
-                    ) : (
-                      busError
-                    )}
-                  </Alert>
-                )}
-                
-                {selectedBusStop && (
-                  <Box>
-                    {selectedBusStop.StopAddress && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                        {selectedBusStop.StopAddress}
-                      </Typography>
-                    )}
-                    
-                    {busRealTimeInfo.length > 0 ? (
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                          即時到站資訊：
-                        </Typography>
-                        {busRealTimeInfo.slice(0, 5).map((info, index) => {
-                          const estimateMinutes = info.EstimateTime 
-                            ? Math.floor(info.EstimateTime / 60) 
-                            : null;
-                          const statusText = 
-                            info.StopStatus === 0 ? '即將進站' :
-                            info.StopStatus === 1 ? '尚未發車' :
-                            info.StopStatus === 2 ? '交管不停靠' :
-                            info.StopStatus === 3 ? '末班車已過' :
-                            info.StopStatus === 4 ? '今日未營運' : '未知';
-                          
-                          return (
-                            <Box 
-                              key={index} 
-                              sx={{ 
-                                mb: 1, 
-                                p: 1, 
-                                bgcolor: 'rgba(33, 150, 243, 0.1)', 
-                                borderRadius: 1,
-                                borderLeft: '3px solid #2196f3'
-                              }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                {info.RouteName.Zh_tw}
-                                {info.Direction === 0 ? ' (去程)' : ' (返程)'}
-                              </Typography>
-                              {estimateMinutes !== null && estimateMinutes >= 0 ? (
-                                <Typography variant="body2" color="text.secondary">
-                                  預估 {estimateMinutes} 分鐘後到站
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {statusText}
-                                </Typography>
-                              )}
-                              {info.PlateNumb && (
-                                <Typography variant="caption" color="text.secondary">
-                                  車牌：{info.PlateNumb}
-                                </Typography>
-                              )}
-                            </Box>
-                          );
-                        })}
-                        {busRealTimeInfo.length > 5 && (
-                          <Typography variant="caption" color="text.secondary">
-                            還有 {busRealTimeInfo.length - 5} 班公車...
-                          </Typography>
-                        )}
-                      </Box>
-                    ) : !busRealTimeLoading && (
-                      <Typography variant="body2" color="text.secondary">
-                        目前無公車資訊
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </Box>
-            )}
-            
-            {selectedMarker.type === 'bike' && (
-              <Box>
-                {youbikeLoading && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CircularProgress size={16} />
-                    <Typography variant="body2" color="text.secondary">
-                      載入中...
-                    </Typography>
-                  </Box>
-                )}
-                
-                {youbikeError && !selectedYouBikeStation && (
-                  <Alert severity="warning" sx={{ mb: 1, fontSize: '0.75rem', py: 0.5 }}>
-                    {youbikeError}
-                  </Alert>
-                )}
-                
-                {selectedYouBikeStation ? (
-                  <Box>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      <strong>可借車輛：</strong>{selectedYouBikeStation.sbi} 輛
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      <strong>可還車位：</strong>{selectedYouBikeStation.bemp} 個
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                      <strong>總停車格：</strong>{selectedYouBikeStation.tot} 個
-                    </Typography>
-                    {selectedYouBikeStation.act === '1' ? (
-                      <Typography variant="body2" color="success.main" sx={{ fontSize: '0.75rem' }}>
-                        ✓ 正常服務中
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2" color="error.main" sx={{ fontSize: '0.75rem' }}>
-                        ⚠ 暫停服務
-                      </Typography>
-                    )}
-                    {selectedYouBikeStation.ar && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                        {selectedYouBikeStation.ar}
-                      </Typography>
-                    )}
-                  </Box>
-                ) : !youbikeLoading && !youbikeError && (
-                  <Typography variant="body2" color="text.secondary">
-                    找不到對應的站點資訊
-                  </Typography>
-                )}
-              </Box>
-            )}
-            
-            {selectedMarker.type === 'food' && (
-              <Typography variant="body2" color="text.secondary">
-                美食評分: 4.5 ★
-              </Typography>
-            )}
-            
-            
-            {selectedMarker.type === 'metro' && (
-              <Typography variant="body2" color="text.secondary">
-                往象山: 3分, 往淡水: 5分
-              </Typography>
-            )}
-            
-            {selectedMarker.type === 'library' && (
-              <Typography variant="body2" color="text.secondary">
-                閉館: 22:00, 人數: 適中
-              </Typography>
-            )}
-            
-            {selectedMarker.type === 'gym' && (
-              <Typography variant="body2" color="text.secondary">
-                人數: 擁擠 (80/100)
-              </Typography>
-            )}
+          <Box sx={{ 
+            minWidth: 280, 
+            maxWidth: 380,
+            backgroundColor: '#ffffff',
+          }}>
+            <InfoWindowHeader
+              name={selectedMarker.name}
+              type={selectedMarker.type}
+              onClose={handleCloseInfoWindow}
+            />
+            <InfoWindowContent
+              selectedMarker={selectedMarker}
+              selectedYouBikeStation={selectedYouBikeStation}
+              selectedBusStop={selectedBusStop}
+              busRealTimeInfo={busRealTimeInfo}
+              busRealTimeLoading={busRealTimeLoading}
+              busError={busError}
+              youbikeLoading={youbikeLoading}
+              youbikeError={youbikeError}
+              gymOccupancy={gymOccupancy}
+              gymLoading={gymLoading}
+              gymError={gymError}
+              libraryInfo={libraryInfo}
+              libraryLoading={libraryLoading}
+              libraryError={libraryError}
+            />
           </Box>
         </InfoWindowF>
       )}
+
+      {/* 當前位置標記 */}
+      {currentLocation && (
+        <MarkerF
+          position={currentLocation}
+          icon={{
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            scale: 10,
+            strokeWeight: 3,
+            strokeColor: '#ffffff',
+          }}
+        />
+      )}
     </GoogleMap>
+    </>
   );
 }
