@@ -565,24 +565,7 @@ export default function MapComponent() {
         />
       ))}
 
-      {/* Bus Pins (模擬資料) */}
-      {(LOCATIONS.bus as any[]).length > 0 && LOCATIONS.bus.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
-          icon={{
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#2196f3',
-            fillOpacity: 1,
-            scale: 8,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-          }}
-        />
-      ))}
-
-      {/* 公車站牌標記 (從 API 獲取，顯示在地圖範圍內) */}
+      {/* 公車站牌標記 (從 API 獲取，顯示在地圖範圍內) - 只有點擊左側公車圖示時才顯示 */}
       {showBusStops &&
         visibleBusStops.map((stop) => (
           <MarkerF

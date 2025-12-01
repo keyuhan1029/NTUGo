@@ -79,7 +79,7 @@ export async function fetchBusStopsNearNTU(): Promise<BusStop[]> {
       const errorData = await response.json().catch(() => ({}));
       
       // 如果沒有設定 API Key，返回空陣列而不是拋出錯誤
-      if (response.status === 500 && errorData.error === 'TDX API Key 未設定') {
+      if (response.status === 500 && errorData.error === 'Valid API Key Required') {
         console.warn('TDX API Key 未設定，無法載入公車站牌資料');
         return [];
       }
@@ -93,8 +93,6 @@ export async function fetchBusStopsNearNTU(): Promise<BusStop[]> {
     cachedBusStops = stops;
     cacheTimestamp = now;
 
-    console.log(`成功載入 ${stops.length} 個公車站牌`);
-
     return stops;
   } catch (error) {
     console.error('獲取公車站牌資料失敗:', error);
@@ -107,7 +105,8 @@ export async function fetchBusStopsNearNTU(): Promise<BusStop[]> {
 }
 
 /**
- * 獲取特定站牌的即時公車資訊
+ * 獲取特定站牌的即時公車資訊（使用 EstimatedTimeOfArrival API）
+ * 此函數會返回經過該站牌的所有公車路線，包括預估到站時間
  * 注意：TDX API 需要 API Key，如果未設定則會返回空陣列
  */
 export async function fetchBusRealTimeInfo(stopUID: string): Promise<BusRealTimeInfo[]> {
@@ -129,6 +128,17 @@ export async function fetchBusRealTimeInfo(stopUID: string): Promise<BusRealTime
       // 如果沒有設定 API Key，返回空陣列而不是拋出錯誤
       if (response.status === 500 && errorData.error === 'TDX API Key 未設定') {
         console.warn('TDX API Key 未設定，無法載入公車即時資訊');
+        return [];
+      }
+      
+      // 處理 429 錯誤（請求過於頻繁）
+      if (response.status === 429) {
+        console.warn('API 請求過於頻繁，請稍後再試');
+        // 返回快取資料（如果有的話）
+        const cached = cachedRealTimeInfo.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
         return [];
       }
       
