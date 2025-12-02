@@ -9,6 +9,7 @@ import { NTU_CENTER, LOCATIONS } from '@/data/mockData';
 import InfoWindowHeader from './InfoWindowHeader';
 import InfoWindowContent from './InfoWindowContent';
 import CurrentLocationButton from './CurrentLocationButton';
+import SVGOverlay from './SVGOverlay';
 import {
   fetchYouBikeStations,
   findStationByName,
@@ -26,6 +27,33 @@ import { useMapContext } from '@/contexts/MapContext';
 const containerStyle = {
   width: '100%',
   height: '100%',
+};
+
+// 自訂校園地標圖示（使用 SVG path）
+// 新體育館 icon（對應 NTUSportsCenter.svg）
+const NTU_SPORTS_CENTER_PATH =
+  'M 100 70 Q 256 10 412 70 L 472 40 L 442 100 Q 502 256 442 412 L 472 472 L 412 442 Q 256 502 100 442 L 40 472 L 70 412 Q 10 256 70 100 L 40 40 Z';
+const NTU_SPORTS_CENTER_VIEWBOX = '0 0 512 512';
+
+// 總圖書館 icon（對應 NTUMainLibrary.svg）
+const NTU_MAIN_LIBRARY_PATH =
+  'M 250 50 L 450 50 L 450 200 L 500 200 L 500 550 L 50 550 L 50 200 L 250 200 Z';
+const NTU_MAIN_LIBRARY_VIEWBOX = '0 0 500 600';
+
+// 新體經緯度邊界（你指定的範圍）
+const GYM_BOUNDS = {
+  north: 25.021999,
+  south: 25.021286,
+  east: 121.535645,
+  west: 121.534778,
+};
+
+// 總圖書館經緯度邊界（你指定的範圍）
+const LIBRARY_BOUNDS = {
+  north: 25.017916,
+  south: 25.017039,
+  east: 121.541376,
+  west: 121.540522,
 };
 
 // Google Maps Styling: 
@@ -140,6 +168,7 @@ export default function MapComponent() {
   } | null>(null);
   const [libraryLoading, setLibraryLoading] = React.useState<boolean>(false);
   const [libraryError, setLibraryError] = React.useState<string | null>(null);
+
 
   const onLoad = React.useCallback(function callback(map: google.maps.Map) {
     setMap(map);
@@ -647,32 +676,61 @@ export default function MapComponent() {
         />
       ))}
 
-      {/* Campus Pins */}
-      {LOCATIONS.campus.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => {
-            setSelectedMarker(item);
-            // 如果是體育館，獲取人數資訊
-            if (item.type === 'gym') {
-              fetchGymOccupancy();
-            }
-            // 如果是圖書館，獲取圖書館資訊
-            if (item.type === 'library') {
-              fetchLibraryInfo();
-            }
-          }}
-          icon={{
-            path: 'M12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
-            fillColor: '#9c27b0',
-            fillOpacity: 1,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-            scale: 1.5,
-          }}
-        />
-      ))}
+      {/* Campus Pins - 新體與總圖使用 SVGOverlay（會隨地圖縮放） */}
+      {/* 新體育館 SVG Overlay */}
+      <SVGOverlay
+        map={map}
+        bounds={GYM_BOUNDS}
+        svgPath={NTU_SPORTS_CENTER_PATH}
+        viewBox={NTU_SPORTS_CENTER_VIEWBOX}
+        defaultColor="#9e9e9e"
+        hoverColor="#000000"
+        onClick={() => {
+          const gymItem = LOCATIONS.campus.find((c) => c.type === 'gym');
+          if (gymItem) {
+            setSelectedMarker(gymItem);
+            fetchGymOccupancy();
+          }
+        }}
+      />
+
+      {/* 總圖書館 SVG Overlay */}
+      <SVGOverlay
+        map={map}
+        bounds={LIBRARY_BOUNDS}
+        svgPath={NTU_MAIN_LIBRARY_PATH}
+        viewBox={NTU_MAIN_LIBRARY_VIEWBOX}
+        defaultColor="#9e9e9e"
+        hoverColor="#000000"
+        onClick={() => {
+          const libraryItem = LOCATIONS.campus.find((c) => c.type === 'library');
+          if (libraryItem) {
+            setSelectedMarker(libraryItem);
+            fetchLibraryInfo();
+          }
+        }}
+      />
+
+      {/* 其他 Campus Pins（非 gym/library）使用 MarkerF */}
+      {LOCATIONS.campus
+        .filter((item) => item.type !== 'gym' && item.type !== 'library')
+        .map((item) => (
+          <MarkerF
+            key={item.id}
+            position={{ lat: item.lat, lng: item.lng }}
+            onClick={() => {
+              setSelectedMarker(item);
+            }}
+            icon={{
+              path: 'M12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
+              fillColor: '#9c27b0',
+              fillOpacity: 1,
+              strokeWeight: 1,
+              strokeColor: '#ffffff',
+              scale: 1.5,
+            }}
+          />
+        ))}
 
       {selectedMarker && (
         <InfoWindowF
