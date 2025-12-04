@@ -3,13 +3,66 @@
 import * as React from 'react';
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
 import { NTU_CENTER, LOCATIONS } from '@/data/mockData';
+import InfoWindowHeader from './InfoWindowHeader';
+import InfoWindowContent from './InfoWindowContent';
+import CurrentLocationButton from './CurrentLocationButton';
+import SVGOverlay from './SVGOverlay';
+import {
+  fetchYouBikeStations,
+  findStationByName,
+  findStationByLocation,
+  type YouBikeStation,
+} from '@/services/youbikeApi';
+import {
+  fetchBusStopsNearNTU,
+  fetchBusRealTimeInfo,
+  type BusStop,
+  type BusRealTimeInfo,
+} from '@/services/busApi';
+import {
+  getMetroStations,
+  fetchMetroTimetable,
+  fetchMetroStationTimeTable,
+  fetchMetroStationExits,
+  type MetroFirstLastTimetable,
+  type MetroStationTimeTable,
+  type MetroStationExit,
+} from '@/services/metroApi';
+import { useMapContext } from '@/contexts/MapContext';
 
 const containerStyle = {
   width: '100%',
   height: '100%',
+};
+
+// 自訂校園地標圖示（使用 SVG path）
+// 新體育館 icon（對應 NTUSportsCenter.svg）
+const NTU_SPORTS_CENTER_PATH =
+  'M 100 70 Q 256 10 412 70 L 472 40 L 442 100 Q 502 256 442 412 L 472 472 L 412 442 Q 256 502 100 442 L 40 472 L 70 412 Q 10 256 70 100 L 40 40 Z';
+const NTU_SPORTS_CENTER_VIEWBOX = '0 0 512 512';
+
+// 總圖書館 icon（對應 NTUMainLibrary.svg）
+const NTU_MAIN_LIBRARY_PATH =
+  'M 250 50 L 450 50 L 450 200 L 500 200 L 500 550 L 50 550 L 50 200 L 250 200 Z';
+const NTU_MAIN_LIBRARY_VIEWBOX = '0 0 500 600';
+
+// 新體經緯度邊界（你指定的範圍）
+const GYM_BOUNDS = {
+  north: 25.021999,
+  south: 25.021286,
+  east: 121.535645,
+  west: 121.534778,
+};
+
+// 總圖書館經緯度邊界（你指定的範圍）
+const LIBRARY_BOUNDS = {
+  north: 25.017916,
+  south: 25.017039,
+  east: 121.541376,
+  west: 121.540522,
 };
 
 // Google Maps Styling: 
@@ -81,8 +134,69 @@ export default function MapComponent() {
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
   });
 
+  const { showYouBikeStations, showBusStops, showMetroStations } = useMapContext();
   const [selectedMarker, setSelectedMarker] = React.useState<any>(null);
   const [map, setMap] = React.useState<google.maps.Map | null>(null);
+  
+  // 防抖：避免快速點擊時重複請求
+  const busStopRequestRef = React.useRef<string | null>(null);
+  const busStopRequestTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [youbikeStations, setYoubikeStations] = React.useState<YouBikeStation[]>([]);
+  const [youbikeLoading, setYoubikeLoading] = React.useState<boolean>(false);
+  const [youbikeError, setYoubikeError] = React.useState<string | null>(null);
+  const [selectedYouBikeStation, setSelectedYouBikeStation] = React.useState<YouBikeStation | null>(null);
+  const [visibleYouBikeStations, setVisibleYouBikeStations] = React.useState<YouBikeStation[]>([]);
+  
+  // 公車相關 state
+  const [busStops, setBusStops] = React.useState<BusStop[]>([]);
+  const [busLoading, setBusLoading] = React.useState<boolean>(false);
+  const [busError, setBusError] = React.useState<string | null>(null);
+  const [visibleBusStops, setVisibleBusStops] = React.useState<BusStop[]>([]);
+  const [selectedBusStop, setSelectedBusStop] = React.useState<BusStop | null>(null);
+  const [busRealTimeInfo, setBusRealTimeInfo] = React.useState<BusRealTimeInfo[]>([]);
+  const [busRealTimeLoading, setBusRealTimeLoading] = React.useState<boolean>(false);
+  
+  // 當前位置相關 state
+  const [currentLocation, setCurrentLocation] = React.useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = React.useState<string | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = React.useState<boolean>(false);
+  
+  // 體育館人數相關 state
+  const [gymOccupancy, setGymOccupancy] = React.useState<{
+    fitnessCenter: { current: number; optimal: number; max: number };
+    swimmingPool: { current: number; optimal: number; max: number };
+    status: string;
+    totalCurrent: number;
+    totalMax: number;
+    lastUpdated: string;
+  } | null>(null);
+  const [gymLoading, setGymLoading] = React.useState<boolean>(false);
+  const [gymError, setGymError] = React.useState<string | null>(null);
+
+  // 圖書館資訊相關 state
+  const [libraryInfo, setLibraryInfo] = React.useState<{
+    openingHours: { today: string; status: string; hours: string };
+    studyRoom: { occupied: number; available: number; total: number };
+    lastUpdated: string;
+  } | null>(null);
+  const [libraryLoading, setLibraryLoading] = React.useState<boolean>(false);
+  const [libraryError, setLibraryError] = React.useState<string | null>(null);
+
+  // 捷運相關 state
+  const [metroStations] = React.useState(getMetroStations());
+  const [visibleMetroStations, setVisibleMetroStations] = React.useState<typeof metroStations>([]);
+  const [selectedMetroStation, setSelectedMetroStation] = React.useState<typeof metroStations[0] | null>(null);
+  const [metroTimetable, setMetroTimetable] = React.useState<MetroFirstLastTimetable[]>([]);
+  const [metroLoading, setMetroLoading] = React.useState<boolean>(false);
+  const [metroError, setMetroError] = React.useState<string | null>(null);
+  const [metroStationTimeTable, setMetroStationTimeTable] = React.useState<MetroStationTimeTable[]>([]);
+  const [metroStationTimeTableLoading, setMetroStationTimeTableLoading] = React.useState<boolean>(false);
+  const [metroStationTimeTableError, setMetroStationTimeTableError] = React.useState<string | null>(null);
+  // 捷運站出口相關 state
+  const [metroExits, setMetroExits] = React.useState<MetroStationExit[]>([]);
+  const [metroExitsLoading, setMetroExitsLoading] = React.useState<boolean>(false);
+  const [metroExitsError, setMetroExitsError] = React.useState<string | null>(null);
+
 
   const onLoad = React.useCallback(function callback(map: google.maps.Map) {
     setMap(map);
@@ -90,6 +204,545 @@ export default function MapComponent() {
 
   const onUnmount = React.useCallback(function callback() {
     setMap(null);
+  }, []);
+
+  // 獲取當前位置
+  const getCurrentLocation = React.useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationError('您的瀏覽器不支援地理定位功能');
+      return;
+    }
+
+    setIsGettingLocation(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setCurrentLocation(location);
+        setIsGettingLocation(false);
+
+        // 將地圖中心移動到當前位置
+        if (map) {
+          map.setCenter(location);
+          map.setZoom(17);
+        }
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError('已拒絕地理定位權限，請在瀏覽器設定中允許位置存取');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocationError('無法取得位置資訊');
+            break;
+          case error.TIMEOUT:
+            setLocationError('取得位置資訊逾時');
+            break;
+          default:
+            setLocationError('取得位置資訊時發生錯誤');
+            break;
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  }, [map]);
+
+  // 返回當前位置
+  const returnToCurrentLocation = React.useCallback(() => {
+    if (currentLocation && map) {
+      map.setCenter(currentLocation);
+      map.setZoom(17);
+    } else {
+      getCurrentLocation();
+    }
+  }, [currentLocation, map, getCurrentLocation]);
+
+  // 獲取體育館人數資訊
+  const fetchGymOccupancy = React.useCallback(async () => {
+    try {
+      setGymLoading(true);
+      setGymError(null);
+      setGymOccupancy(null); // 清除舊數據
+      
+      const response = await fetch('/api/gym/occupancy');
+      
+      // 檢查 HTTP 狀態碼
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setGymError(errorData.message || `服務器錯誤 (${response.status})`);
+        setGymOccupancy(null);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('體育館人數 API 響應:', data);
+      
+      if (data.success && data.data) {
+        setGymOccupancy({
+          ...data.data,
+          status: data.status,
+          totalCurrent: data.totalCurrent,
+          totalMax: data.totalMax,
+        });
+        setGymError(null); // 清除錯誤
+      } else {
+        setGymError(data.message || '無法獲取體育館人數資訊');
+        setGymOccupancy(null);
+      }
+    } catch (error: any) {
+      console.error('獲取體育館人數資訊失敗:', error);
+      setGymError(error.message || '獲取體育館人數資訊時發生錯誤，請稍後再試');
+      setGymOccupancy(null);
+    } finally {
+      setGymLoading(false);
+    }
+  }, []);
+
+  // 獲取圖書館資訊
+  const fetchLibraryInfo = React.useCallback(async () => {
+    try {
+      setLibraryLoading(true);
+      setLibraryError(null);
+      setLibraryInfo(null); // 清除舊數據
+      
+      const response = await fetch('/api/library/info');
+      
+      // 檢查 HTTP 狀態碼
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setLibraryError(errorData.message || `服務器錯誤 (${response.status})`);
+        setLibraryInfo(null);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('圖書館資訊 API 響應:', data);
+      
+      if (data.success && data.data) {
+        setLibraryInfo(data.data);
+        setLibraryError(null); // 清除錯誤
+      } else {
+        setLibraryError(data.message || '無法獲取圖書館資訊');
+        setLibraryInfo(null);
+      }
+    } catch (error: any) {
+      console.error('獲取圖書館資訊失敗:', error);
+      setLibraryError(error.message || '獲取圖書館資訊時發生錯誤，請稍後再試');
+      setLibraryInfo(null);
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
+
+  // 計算兩點間距離（公里）- 使用 Haversine 公式
+  const calculateDistance = React.useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371; // 地球半徑（公里）
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }, []);
+
+  // 台大圖書館座標
+  const libraryLocation = React.useMemo(() => ({
+    lat: 25.0175,
+    lng: 121.539,
+  }), []);
+
+  // 載入 YouBike 站點資料（只載入台大圖書館2公里內的站點）
+  React.useEffect(() => {
+    const loadYouBikeStations = async () => {
+      try {
+        setYoubikeLoading(true);
+        setYoubikeError(null);
+        const stations = await fetchYouBikeStations();
+        
+        // 過濾出距離台大圖書館2公里內的站點
+        const nearbyStations = stations.filter((station) => {
+          const distance = calculateDistance(
+            libraryLocation.lat,
+            libraryLocation.lng,
+            station.lat,
+            station.lng
+          );
+          return distance <= 1; // 2公里
+        }); 
+        
+        setYoubikeStations(nearbyStations);
+      } catch (error) {
+        console.error('載入 YouBike 資料失敗:', error);
+        setYoubikeError('無法載入 YouBike 站點資料');
+      } finally {
+        setYoubikeLoading(false);
+      }
+    };
+
+    if (isLoaded) {
+      loadYouBikeStations();
+    }
+  }, [isLoaded, calculateDistance, libraryLocation]);
+
+  // 載入公車站牌資料
+  React.useEffect(() => {
+    const loadBusStops = async () => {
+      if (!showBusStops) {
+        setBusStops([]);
+        setVisibleBusStops([]);
+        return;
+      }
+
+      try {
+        setBusLoading(true);
+        setBusError(null);
+        const stops = await fetchBusStopsNearNTU();
+        setBusStops(stops);
+      } catch (error) {
+        console.error('載入公車站牌資料失敗:', error);
+        setBusError('無法載入公車站牌資料');
+      } finally {
+        setBusLoading(false);
+      }
+    };
+
+    if (isLoaded && showBusStops) {
+      loadBusStops();
+    }
+  }, [isLoaded, showBusStops]);
+
+  // 當 showYouBikeStations、showBusStops、showMetroStations 或地圖範圍變化時，更新可見站點
+  // 注意：youbikeStations 已經過濾為台大圖書館2公里內的站點
+  React.useEffect(() => {
+    if (!map) return;
+
+    const updateVisibleStations = () => {
+      if (showYouBikeStations && youbikeStations.length > 0) {
+        const bounds = map.getBounds();
+        if (bounds) {
+          // 只顯示在地圖視窗內且已在2公里範圍內的站點
+          const visible = youbikeStations.filter((station) => {
+            const latLng = new google.maps.LatLng(station.lat, station.lng);
+            return bounds.contains(latLng);
+          });
+          setVisibleYouBikeStations(visible);
+        }
+      } else {
+        setVisibleYouBikeStations([]);
+      }
+
+      // 更新可見的公車站牌
+      if (showBusStops && busStops.length > 0) {
+        const bounds = map.getBounds();
+        if (bounds) {
+          const visible = busStops.filter((stop) => {
+            const latLng = new google.maps.LatLng(
+              stop.StopPosition.PositionLat,
+              stop.StopPosition.PositionLon
+            );
+            return bounds.contains(latLng);
+          });
+          setVisibleBusStops(visible);
+        }
+      } else {
+        setVisibleBusStops([]);
+      }
+
+      // 更新可見的捷運站
+      if (showMetroStations && metroStations.length > 0) {
+        const bounds = map.getBounds();
+        if (bounds) {
+          const visible = metroStations.filter((station) => {
+            const latLng = new google.maps.LatLng(station.lat, station.lng);
+            return bounds.contains(latLng);
+          });
+          setVisibleMetroStations(visible);
+        }
+      } else {
+        setVisibleMetroStations([]);
+      }
+    };
+
+    // 初始更新
+    updateVisibleStations();
+
+    // 監聽地圖範圍變化
+    const boundsListener = map.addListener('bounds_changed', updateVisibleStations);
+    const zoomListener = map.addListener('zoom_changed', updateVisibleStations);
+    const centerListener = map.addListener('center_changed', updateVisibleStations);
+
+    // 清理監聽器
+    return () => {
+      google.maps.event.removeListener(boundsListener);
+      google.maps.event.removeListener(zoomListener);
+      google.maps.event.removeListener(centerListener);
+    };
+  }, [map, showYouBikeStations, youbikeStations, showBusStops, busStops, showMetroStations, metroStations]);
+
+  // 當顯示捷運站時，獲取所有車站的出口數據
+  React.useEffect(() => {
+    if (!showMetroStations || metroStations.length === 0) {
+      setMetroExits([]);
+      return;
+    }
+
+    const fetchAllStationExits = async () => {
+      setMetroExitsLoading(true);
+      setMetroExitsError(null);
+      
+      try {
+        // 並行獲取所有車站的出口數據
+        const exitPromises = metroStations.map(async (station) => {
+          const cleanStationName = station.name.replace('站', '').trim();
+          const isTransferStation = (station as any).isTransfer === true;
+          const queryStationId = isTransferStation ? '' : station.stationId;
+          const queryStationName = isTransferStation ? cleanStationName : '';
+          
+          return fetchMetroStationExits(queryStationId, queryStationName);
+        });
+        
+        const allExits = await Promise.all(exitPromises);
+        // 合併所有出口數據
+        const mergedExits = allExits.flat();
+        setMetroExits(mergedExits);
+      } catch (error) {
+        console.error('獲取捷運站出口數據失敗:', error);
+        setMetroExitsError('無法獲取出口資訊');
+      } finally {
+        setMetroExitsLoading(false);
+      }
+    };
+
+    fetchAllStationExits();
+  }, [showMetroStations, metroStations]);
+
+  // 處理公車站牌點擊事件（優化：添加防抖和請求去重）
+  const handleBusStopClick = React.useCallback(async (stop: BusStop) => {
+    const stopName = stop.StopName.Zh_tw;
+    
+    // 立即更新 UI（不等待 API 請求）
+    setSelectedMarker({
+      id: stop.StopUID,
+      name: stopName,
+      lat: stop.StopPosition.PositionLat,
+      lng: stop.StopPosition.PositionLon,
+      type: 'bus',
+    });
+    setSelectedBusStop(stop);
+    
+    // 如果正在請求相同的站點，取消之前的請求
+    if (busStopRequestRef.current === stopName) {
+      if (busStopRequestTimeoutRef.current) {
+        clearTimeout(busStopRequestTimeoutRef.current);
+      }
+    }
+    
+    busStopRequestRef.current = stopName;
+    
+    // 清除之前的數據
+    setBusRealTimeInfo([]);
+    
+    // 防抖：延遲 100ms 後再請求（避免快速點擊）
+    if (busStopRequestTimeoutRef.current) {
+      clearTimeout(busStopRequestTimeoutRef.current);
+    }
+    
+    busStopRequestTimeoutRef.current = setTimeout(async () => {
+      try {
+        setBusRealTimeLoading(true);
+        // 使用站名查詢，這樣可以獲取所有同名站點的路線（類似台北等公車）
+        const realTimeInfo = await fetchBusRealTimeInfo(stopName, true);
+        
+        // 確保請求的站點仍然是當前選中的站點（避免異步競態條件）
+        if (busStopRequestRef.current === stopName) {
+          setBusRealTimeInfo(realTimeInfo);
+        }
+      } catch (error) {
+        console.error('獲取公車即時資訊失敗:', error);
+      } finally {
+        if (busStopRequestRef.current === stopName) {
+          setBusRealTimeLoading(false);
+        }
+      }
+    }, 100);
+  }, []);
+  
+  // 清理 timeout（組件卸載時）
+  React.useEffect(() => {
+    return () => {
+      if (busStopRequestTimeoutRef.current) {
+        clearTimeout(busStopRequestTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // 處理 bike pin 點擊事件
+  const handleBikePinClick = React.useCallback(async (item: any) => {
+    setSelectedMarker(item);
+    setSelectedYouBikeStation(null);
+
+    // 如果已經有載入的站點資料，直接查找
+    if (youbikeStations.length > 0) {
+      // 先嘗試根據名稱匹配
+      let station = findStationByName(youbikeStations, item.name);
+      
+      // 如果名稱匹配失敗，嘗試根據座標匹配
+      if (!station) {
+        station = findStationByLocation(youbikeStations, item.lat, item.lng, 0.01);
+      }
+
+      if (station) {
+        setSelectedYouBikeStation(station);
+      }
+    } else {
+      // 如果還沒有載入資料，嘗試獲取
+      try {
+        setYoubikeLoading(true);
+        const stations = await fetchYouBikeStations();
+        setYoubikeStations(stations);
+        
+        let station = findStationByName(stations, item.name);
+        if (!station) {
+          station = findStationByLocation(stations, item.lat, item.lng, 0.01);
+        }
+
+        if (station) {
+          setSelectedYouBikeStation(station);
+        }
+      } catch (error) {
+        console.error('獲取 YouBike 資料失敗:', error);
+        setYoubikeError('無法獲取站點資訊');
+      } finally {
+        setYoubikeLoading(false);
+      }
+    }
+  }, [youbikeStations]);
+
+  // 處理捷運站點擊事件 - 獲取出口數據
+  const handleMetroStationClick = React.useCallback(async (station: typeof metroStations[0]) => {
+    setSelectedMetroStation(station);
+    setMetroTimetable([]);
+    setMetroError(null);
+    setMetroStationTimeTable([]);
+    setMetroStationTimeTableError(null);
+    setMetroExits([]);
+    setMetroExitsError(null);
+
+    const cleanStationName = station.name.replace('站', '').trim();
+    const isTransferStation = (station as any).isTransfer === true;
+    const queryStationId = isTransferStation ? '' : station.stationId;
+    const queryStationName = isTransferStation ? cleanStationName : '';
+
+    // 並行獲取首末班車時刻表、列車時刻表和出口資訊
+    try {
+      setMetroLoading(true);
+      setMetroStationTimeTableLoading(true);
+      setMetroExitsLoading(true);
+      
+      const timetablePromise = fetchMetroTimetable(queryStationId, queryStationName);
+      const stationTimeTablePromise = fetchMetroStationTimeTable(queryStationId, queryStationName);
+      const exitsPromise = fetchMetroStationExits(queryStationId, queryStationName);
+      
+      const [timetable, stationTimeTable, exits] = await Promise.all([
+        timetablePromise,
+        stationTimeTablePromise,
+        exitsPromise,
+      ]);
+      
+      setMetroTimetable(timetable);
+      setMetroStationTimeTable(stationTimeTable);
+      setMetroExits(exits);
+    } catch (error) {
+      console.error('獲取捷運資訊失敗:', error);
+      setMetroError('無法獲取時刻表資訊');
+      setMetroStationTimeTableError('無法獲取列車時刻表資訊');
+      setMetroExitsError('無法獲取出口資訊');
+    } finally {
+      setMetroLoading(false);
+      setMetroStationTimeTableLoading(false);
+      setMetroExitsLoading(false);
+    }
+  }, []);
+
+  // 處理捷運站出口點擊事件
+  const handleMetroExitClick = React.useCallback(async (exit: MetroStationExit, station: typeof metroStations[0]) => {
+    setSelectedMarker({
+      id: `metro-exit-${exit.StationID}-${exit.ExitID}`,
+      name: `${station.name} - ${exit.ExitName.Zh_tw}`,
+      lat: exit.ExitPosition.PositionLat,
+      lng: exit.ExitPosition.PositionLon,
+      type: 'metro',
+    });
+    setSelectedMetroStation(station);
+    
+    // 如果該車站的時刻表數據還沒有加載，則加載
+    const cleanStationName = station.name.replace('站', '').trim();
+    const isTransferStation = (station as any).isTransfer === true;
+    const queryStationId = isTransferStation ? '' : station.stationId;
+    const queryStationName = isTransferStation ? cleanStationName : '';
+    
+    // 檢查是否已經有該車站的數據
+    const hasStationData = metroTimetable.length > 0 && 
+      (metroTimetable[0]?.StationID === station.stationId || 
+       metroTimetable[0]?.StationName?.Zh_tw === cleanStationName);
+    
+    if (!hasStationData) {
+      setMetroTimetable([]);
+      setMetroError(null);
+      setMetroStationTimeTable([]);
+      setMetroStationTimeTableError(null);
+      
+      try {
+        setMetroLoading(true);
+        setMetroStationTimeTableLoading(true);
+        
+        const timetablePromise = fetchMetroTimetable(queryStationId, queryStationName);
+        const stationTimeTablePromise = fetchMetroStationTimeTable(queryStationId, queryStationName);
+        
+        const [timetable, stationTimeTable] = await Promise.all([
+          timetablePromise,
+          stationTimeTablePromise,
+        ]);
+        
+        setMetroTimetable(timetable);
+        setMetroStationTimeTable(stationTimeTable);
+      } catch (error) {
+        console.error('獲取捷運時刻表失敗:', error);
+        setMetroError('無法獲取時刻表資訊');
+        setMetroStationTimeTableError('無法獲取列車時刻表資訊');
+      } finally {
+        setMetroLoading(false);
+        setMetroStationTimeTableLoading(false);
+      }
+    }
+  }, [metroTimetable, metroStations]);
+
+  const handleCloseInfoWindow = React.useCallback(() => {
+    setSelectedMarker(null);
+    setSelectedYouBikeStation(null);
+    setSelectedBusStop(null);
+    setBusRealTimeInfo([]);
+    setGymOccupancy(null);
+    setGymError(null);
+    setLibraryInfo(null);
+    setLibraryError(null);
+    setSelectedMetroStation(null);
+    setMetroTimetable([]);
+    setMetroError(null);
+    setMetroStationTimeTable([]);
+    setMetroStationTimeTableError(null);
   }, []);
 
   if (!isLoaded) {
@@ -101,6 +754,40 @@ export default function MapComponent() {
   }
 
   return (
+    <>
+      {/* 返回當前位置按鈕 */}
+      <CurrentLocationButton
+        currentLocation={currentLocation}
+        isGettingLocation={isGettingLocation}
+        onGetLocation={getCurrentLocation}
+        onReturnToLocation={returnToCurrentLocation}
+      />
+
+      {/* 位置錯誤提示 */}
+      {locationError && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 80,
+            left: 16,
+            right: 16,
+            zIndex: 1100,
+            maxWidth: 400,
+          }}
+        >
+          <Alert
+            severity="warning"
+            onClose={() => setLocationError(null)}
+            sx={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {locationError}
+          </Alert>
+        </Box>
+      )}
+
     <GoogleMap
       mapContainerStyle={containerStyle}
       center={NTU_CENTER}
@@ -110,7 +797,7 @@ export default function MapComponent() {
       options={mapOptions}
     >
       {/* Food Pins */}
-      {LOCATIONS.food.map((item) => (
+      {(LOCATIONS.food as any[]).length > 0 && LOCATIONS.food.map((item) => (
         <MarkerF
           key={item.id}
           position={{ lat: item.lat, lng: item.lng }}
@@ -126,29 +813,33 @@ export default function MapComponent() {
         />
       ))}
 
-      {/* Bus Pins */}
-      {LOCATIONS.bus.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
-          icon={{
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#2196f3',
-            fillOpacity: 1,
-            scale: 8,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-          }}
-        />
-      ))}
+      {/* 公車站牌標記 (從 API 獲取，顯示在地圖範圍內) - 只有點擊左側公車圖示時才顯示 */}
+      {showBusStops &&
+        visibleBusStops.map((stop) => (
+          <MarkerF
+            key={`bus-${stop.StopUID}`}
+            position={{
+              lat: stop.StopPosition.PositionLat,
+              lng: stop.StopPosition.PositionLon,
+            }}
+            onClick={() => handleBusStopClick(stop)}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              fillColor: '#2196f3',
+              fillOpacity: 0.8,
+              scale: 7,
+              strokeWeight: 2,
+              strokeColor: '#ffffff',
+            }}
+          />
+        ))}
 
-      {/* Bike Pins */}
+      {/* Bike Pins (模擬資料) */}
       {LOCATIONS.bike.map((item) => (
         <MarkerF
           key={item.id}
           position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
+          onClick={() => handleBikePinClick(item)}
           icon={{
             path: google.maps.SymbolPath.CIRCLE,
             fillColor: '#fdd835',
@@ -160,60 +851,216 @@ export default function MapComponent() {
         />
       ))}
 
-      {/* Metro Pins */}
-      {LOCATIONS.metro.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
-          icon={{
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#4caf50',
-            fillOpacity: 1,
-            scale: 10,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-          }}
-        />
-      ))}
+      {/* YouBike 站點標記 (從 API 獲取，顯示在地圖範圍內) */}
+      {showYouBikeStations &&
+        visibleYouBikeStations.map((station) => (
+          <MarkerF
+            key={`youbike-${station.sno}`}
+            position={{ lat: station.lat, lng: station.lng }}
+            onClick={() => {
+              setSelectedMarker({
+                id: `youbike-${station.sno}`,
+                name: station.sna,
+                lat: station.lat,
+                lng: station.lng,
+                type: 'bike',
+              });
+              setSelectedYouBikeStation(station);
+            }}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              fillColor: station.act === '1' ? '#fdd835' : '#999999', // 正常服務為黃色，暫停服務為灰色
+              fillOpacity: 0.8,
+              scale: 7,
+              strokeWeight: 2,
+              strokeColor: '#000000',
+            }}
+          />
+        ))}
 
-      {/* Campus Pins */}
-      {LOCATIONS.campus.map((item) => (
-        <MarkerF
-          key={item.id}
-          position={{ lat: item.lat, lng: item.lng }}
-          onClick={() => setSelectedMarker(item)}
-          icon={{
-            path: 'M12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
-            fillColor: '#9c27b0',
-            fillOpacity: 1,
-            strokeWeight: 1,
-            strokeColor: '#ffffff',
-            scale: 1.5,
-          }}
-        />
-      ))}
+      {/* 捷運站出口標記 - 只有點擊左側捷運圖示時才顯示 */}
+      {showMetroStations &&
+        metroExits
+          .filter((exit) => {
+            if (!map) return false;
+            const bounds = map.getBounds();
+            if (!bounds) return false;
+            const latLng = new google.maps.LatLng(
+              exit.ExitPosition.PositionLat,
+              exit.ExitPosition.PositionLon
+            );
+            return bounds.contains(latLng);
+          })
+          .map((exit) => {
+            // 找到對應的車站
+            const station = metroStations.find(
+              (s) => s.stationId === exit.StationID || 
+              s.name === exit.StationName.Zh_tw || 
+              s.name === `${exit.StationName.Zh_tw}站`
+            );
+            if (!station) return null;
+            
+            return (
+              <MarkerF
+                key={`metro-exit-${exit.StationID}-${exit.ExitID}`}
+                position={{
+                  lat: exit.ExitPosition.PositionLat,
+                  lng: exit.ExitPosition.PositionLon,
+                }}
+                onClick={() => handleMetroExitClick(exit, station)}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: '#4caf50',
+                  fillOpacity: 0.8,
+                  scale: 6,
+                  strokeWeight: 2,
+                  strokeColor: '#ffffff',
+                }}
+              />
+            );
+          })
+          .filter(Boolean)}
+
+      {/* Campus Pins - 新體與總圖使用 SVGOverlay（會隨地圖縮放） */}
+      {/* 新體育館 SVG Overlay */}
+      <SVGOverlay
+        map={map}
+        bounds={GYM_BOUNDS}
+        svgPath={NTU_SPORTS_CENTER_PATH}
+        viewBox={NTU_SPORTS_CENTER_VIEWBOX}
+        defaultColor="#9e9e9e"
+        hoverColor="#000000"
+        onClick={() => {
+          const gymItem = LOCATIONS.campus.find((c) => c.type === 'gym');
+          if (gymItem) {
+            setSelectedMarker(gymItem);
+            fetchGymOccupancy();
+          }
+        }}
+      />
+
+      {/* 總圖書館 SVG Overlay */}
+      <SVGOverlay
+        map={map}
+        bounds={LIBRARY_BOUNDS}
+        svgPath={NTU_MAIN_LIBRARY_PATH}
+        viewBox={NTU_MAIN_LIBRARY_VIEWBOX}
+        defaultColor="#9e9e9e"
+        hoverColor="#000000"
+        onClick={() => {
+          const libraryItem = LOCATIONS.campus.find((c) => c.type === 'library');
+          if (libraryItem) {
+            setSelectedMarker(libraryItem);
+            fetchLibraryInfo();
+          }
+        }}
+      />
+
+      {/* 其他 Campus Pins（非 gym/library）使用 MarkerF */}
+      {LOCATIONS.campus
+        .filter((item) => item.type !== 'gym' && item.type !== 'library')
+        .map((item) => (
+          <MarkerF
+            key={item.id}
+            position={{ lat: item.lat, lng: item.lng }}
+            onClick={() => {
+              setSelectedMarker(item);
+            }}
+            icon={{
+              path: 'M12 3L1 9l11 6 9-4.91V17h2V9L12 3z',
+              fillColor: '#9c27b0',
+              fillOpacity: 1,
+              strokeWeight: 1,
+              strokeColor: '#ffffff',
+              scale: 1.5,
+            }}
+          />
+        ))}
 
       {selectedMarker && (
         <InfoWindowF
           position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
-          onCloseClick={() => setSelectedMarker(null)}
+          options={{
+            pixelOffset: new google.maps.Size(0, 0),
+            disableAutoPan: false,
+          }}
+          onCloseClick={handleCloseInfoWindow}
         >
-          <Box sx={{ p: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-              {selectedMarker.name}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {selectedMarker.type === 'food' && '美食評分: 4.5 ★'}
-              {selectedMarker.type === 'bus' && '即將進站: 208, 606'}
-              {selectedMarker.type === 'bike' && '可借: 15, 可還: 5'}
-              {selectedMarker.type === 'metro' && '往象山: 3分, 往淡水: 5分'}
-              {selectedMarker.type === 'library' && '閉館: 22:00, 人數: 適中'}
-              {selectedMarker.type === 'gym' && '人數: 擁擠 (80/100)'}
-            </Typography>
+          <Box sx={{ 
+            width: 380,
+            maxHeight: 600,
+            backgroundColor: '#ffffff',
+            borderRadius: '10px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <InfoWindowHeader
+              name={selectedMarker.name}
+              type={selectedMarker.type}
+              onClose={handleCloseInfoWindow}
+            />
+            <Box sx={{
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              flex: 1,
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#888',
+                borderRadius: '4px',
+                '&:hover': {
+                  background: '#555',
+                },
+              },
+            }}>
+              <InfoWindowContent
+              selectedMarker={selectedMarker}
+              selectedYouBikeStation={selectedYouBikeStation}
+              selectedBusStop={selectedBusStop}
+              busRealTimeInfo={busRealTimeInfo}
+              busRealTimeLoading={busRealTimeLoading}
+              busError={busError}
+              youbikeLoading={youbikeLoading}
+              youbikeError={youbikeError}
+              gymOccupancy={gymOccupancy}
+              gymLoading={gymLoading}
+              gymError={gymError}
+              libraryInfo={libraryInfo}
+              libraryLoading={libraryLoading}
+              libraryError={libraryError}
+              selectedMetroStation={selectedMetroStation}
+              metroTimetable={metroTimetable}
+              metroLoading={metroLoading}
+              metroError={metroError}
+              metroStationTimeTable={metroStationTimeTable}
+              metroStationTimeTableLoading={metroStationTimeTableLoading}
+              metroStationTimeTableError={metroStationTimeTableError}
+            />
+            </Box>
           </Box>
         </InfoWindowF>
       )}
+
+      {/* 當前位置標記 */}
+      {currentLocation && (
+        <MarkerF
+          position={currentLocation}
+          icon={{
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            scale: 10,
+            strokeWeight: 3,
+            strokeColor: '#ffffff',
+          }}
+        />
+      )}
     </GoogleMap>
+    </>
   );
 }
