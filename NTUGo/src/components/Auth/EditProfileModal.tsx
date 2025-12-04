@@ -387,3 +387,4 @@ export default function EditProfileModal({ open, onClose, onUpdate }: EditProfil
   );
 }
 
+

@@ -7,6 +7,8 @@ interface MapContextType {
   setShowYouBikeStations: (show: boolean) => void;
   showBusStops: boolean;
   setShowBusStops: (show: boolean) => void;
+  showMetroStations: boolean;
+  setShowMetroStations: (show: boolean) => void;
 }
 
 const MapContext = React.createContext<MapContextType | undefined>(undefined);
@@ -14,6 +16,7 @@ const MapContext = React.createContext<MapContextType | undefined>(undefined);
 export function MapProvider({ children }: { children: React.ReactNode }) {
   const [showYouBikeStations, setShowYouBikeStations] = React.useState(false);
   const [showBusStops, setShowBusStops] = React.useState(false);
+  const [showMetroStations, setShowMetroStations] = React.useState(false);
 
   return (
     <MapContext.Provider value={{ 
@@ -21,6 +24,8 @@ export function MapProvider({ children }: { children: React.ReactNode }) {
       setShowYouBikeStations,
       showBusStops,
       setShowBusStops,
+      showMetroStations,
+      setShowMetroStations,
     }}>
       {children}
     </MapContext.Provider>

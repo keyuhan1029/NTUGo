@@ -103,3 +103,4 @@ export default function LoginCard({ onEmailLogin, onGoogleLogin, isLoading }: Lo
   );
 }
 
+

@@ -5,10 +5,12 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import type { YouBikeStation } from '@/services/youbikeApi';
 import type { BusStop, BusRealTimeInfo } from '@/services/busApi';
+import type { MetroFirstLastTimetable, MetroStationTimeTable } from '@/services/metroApi';
 import BusInfoContent from './BusInfoContent';
 import BikeInfoContent from './BikeInfoContent';
 import GymInfoContent from './GymInfoContent';
 import LibraryInfoContent from './LibraryInfoContent';
+import MetroInfoContent from './MetroInfoContent';
 
 interface GymOccupancy {
   fitnessCenter: { current: number; optimal: number; max: number };
@@ -40,6 +42,13 @@ interface InfoWindowContentProps {
   libraryInfo: LibraryInfo | null;
   libraryLoading: boolean;
   libraryError: string | null;
+  selectedMetroStation: { name: string; lat: number; lng: number; stationId: string } | null;
+  metroTimetable: MetroFirstLastTimetable[];
+  metroLoading: boolean;
+  metroError: string | null;
+  metroStationTimeTable?: MetroStationTimeTable[];
+  metroStationTimeTableLoading?: boolean;
+  metroStationTimeTableError?: string | null;
 }
 
 export default function InfoWindowContent({
@@ -57,6 +66,13 @@ export default function InfoWindowContent({
   libraryInfo,
   libraryLoading,
   libraryError,
+  selectedMetroStation,
+  metroTimetable,
+  metroLoading,
+  metroError,
+  metroStationTimeTable = [],
+  metroStationTimeTableLoading = false,
+  metroStationTimeTableError = null,
 }: InfoWindowContentProps) {
   return (
     <Box sx={{ p: 2 }}>
@@ -93,46 +109,15 @@ export default function InfoWindowContent({
       )}
       
       {selectedMarker.type === 'metro' && (
-        <Box>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 1.5,
-            }}
-          >
-            <Box
-              sx={{
-                p: 1.5,
-                backgroundColor: '#e8f5e9',
-                borderRadius: 2,
-                textAlign: 'center',
-              }}
-            >
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                往象山
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700, color: '#2e7d32' }}>
-                3 分
-              </Typography>
-            </Box>
-            <Box
-              sx={{
-                p: 1.5,
-                backgroundColor: '#e3f2fd',
-                borderRadius: 2,
-                textAlign: 'center',
-              }}
-            >
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                往淡水
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700, color: '#1976d2' }}>
-                5 分
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
+        <MetroInfoContent
+          stationName={selectedMetroStation?.name || selectedMarker.name}
+          metroTimetable={metroTimetable}
+          metroLoading={metroLoading}
+          metroError={metroError}
+          metroStationTimeTable={metroStationTimeTable}
+          metroStationTimeTableLoading={metroStationTimeTableLoading}
+          metroStationTimeTableError={metroStationTimeTableError}
+        />
       )}
       
       {selectedMarker.type === 'library' && (

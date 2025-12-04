@@ -67,7 +67,7 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 
 export default function Sidebar() {
   const [open, setOpen] = React.useState(false);
-  const { showYouBikeStations, setShowYouBikeStations, showBusStops, setShowBusStops } = useMapContext();
+  const { showYouBikeStations, setShowYouBikeStations, showBusStops, setShowBusStops, showMetroStations, setShowMetroStations } = useMapContext();
 
   const handleDrawerToggle = () => {
     setOpen(!open);
@@ -89,6 +89,10 @@ export default function Sidebar() {
     setShowBusStops(!showBusStops);
   };
 
+  const handleMetroClick = () => {
+    setShowMetroStations(!showMetroStations);
+  };
+
   const handleNTUCOOLClick = () => {
     window.open('https://cool.ntu.edu.tw/login/portal?message=%E5%9C%A8%E6%82%A8%E7%9A%84%20IdP%20%E7%99%BB%E5%87%BA%E6%99%82%E5%87%BA%E7%8F%BE%E5%95%8F%E9%A1%8C', '_blank');
   };
@@ -101,7 +105,7 @@ export default function Sidebar() {
     { text: '目錄', icon: <MenuIcon />, action: handleDrawerToggle, active: false },
     { text: '公車', icon: <DirectionsBusIcon />, action: handleBusClick, active: showBusStops },
     { text: 'YouBike', icon: <PedalBikeIcon />, action: handleYouBikeClick, active: showYouBikeStations },
-    { text: '捷運', icon: <DirectionsSubwayIcon />, active: false },
+    { text: '捷運', icon: <DirectionsSubwayIcon />, action: handleMetroClick, active: showMetroStations },
     { text: '論壇', icon: <ForumIcon />, active: false },
     { text: 'NTU COOL', icon: <SchoolIcon />, action: handleNTUCOOLClick, active: false },
     { text: 'NTU Mail', icon: <EmailIcon />, action: handleNTUMailClick, active: false },
