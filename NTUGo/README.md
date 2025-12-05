@@ -2,6 +2,10 @@
 
 專為台大學生打造的整合式地圖服務平台，提供校園周邊美食、交通資訊（公車、YouBike、捷運）、校內設施查詢、個人行事曆等功能。
 
+## 🌐 線上版本
+
+**部署連結：** [https://ntugo.vercel.app/](https://ntugo.vercel.app/)
+
 ## 技術棧
 
 - **Next.js 16** (App Router) - 全端框架
