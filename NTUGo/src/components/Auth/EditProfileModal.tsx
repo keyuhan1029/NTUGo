@@ -52,13 +52,7 @@ export default function EditProfileModal({ open, onClose, onUpdate }: EditProfil
   const [userId, setUserId] = React.useState('');
   const [department, setDepartment] = React.useState('');
 
-  React.useEffect(() => {
-    if (open) {
-      fetchUserInfo();
-    }
-  }, [open]);
-
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = React.useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -91,7 +85,13 @@ export default function EditProfileModal({ open, onClose, onUpdate }: EditProfil
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    if (open) {
+      fetchUserInfo();
+    }
+  }, [open, fetchUserInfo]);
 
   const handleSave = async () => {
     try {

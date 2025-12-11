@@ -71,43 +71,43 @@ export default function Sidebar() {
   const { showYouBikeStations, setShowYouBikeStations, showBusStops, setShowBusStops, showMetroStations, setShowMetroStations } = useMapContext();
   const router = useRouter();
 
-  const handleHomeClick = () => {
+  const handleHomeClick = React.useCallback(() => {
     router.push('/');
-  };
+  }, [router]);
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = React.useCallback(() => {
     setOpen(true);
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = React.useCallback(() => {
     setOpen(false);
-  };
+  }, []);
 
-  const handleYouBikeClick = () => {
+  const handleYouBikeClick = React.useCallback(() => {
     setShowYouBikeStations(!showYouBikeStations);
-  };
+  }, [showYouBikeStations, setShowYouBikeStations]);
 
-  const handleBusClick = () => {
+  const handleBusClick = React.useCallback(() => {
     setShowBusStops(!showBusStops);
-  };
+  }, [showBusStops, setShowBusStops]);
 
-  const handleMetroClick = () => {
+  const handleMetroClick = React.useCallback(() => {
     setShowMetroStations(!showMetroStations);
-  };
+  }, [showMetroStations, setShowMetroStations]);
 
-  const handleCommunityClick = () => {
+  const handleCommunityClick = React.useCallback(() => {
     router.push('/community');
-  };
+  }, [router]);
 
-  const handleNTUCOOLClick = () => {
+  const handleNTUCOOLClick = React.useCallback(() => {
     window.open('https://cool.ntu.edu.tw/login/portal?message=%E5%9C%A8%E6%82%A8%E7%9A%84%20IdP%20%E7%99%BB%E5%87%BA%E6%99%82%E5%87%BA%E7%8F%BE%E5%95%8F%E9%A1%8C', '_blank');
-  };
+  }, []);
 
-  const handleNTUMailClick = () => {
+  const handleNTUMailClick = React.useCallback(() => {
     window.open('https://wmail1.cc.ntu.edu.tw/rc/index.php', '_blank');
-  };
+  }, []);
 
-  const menuItems = [
+  const menuItems = React.useMemo(() => [
     { text: '主頁', icon: <HomeIcon />, action: handleHomeClick, active: false },
     { text: '公車', icon: <DirectionsBusIcon />, action: handleBusClick, active: showBusStops },
     { text: 'YouBike', icon: <PedalBikeIcon />, action: handleYouBikeClick, active: showYouBikeStations },
@@ -115,7 +115,7 @@ export default function Sidebar() {
     { text: '社群', icon: <PeopleIcon />, action: handleCommunityClick, active: false },
     { text: 'NTU COOL', icon: <SchoolIcon />, action: handleNTUCOOLClick, active: false },
     { text: 'NTU Mail', icon: <EmailIcon />, action: handleNTUMailClick, active: false },
-  ];
+  ], [handleHomeClick, handleBusClick, handleYouBikeClick, handleMetroClick, handleCommunityClick, handleNTUCOOLClick, handleNTUMailClick, showBusStops, showYouBikeStations, showMetroStations]);
 
   return (
     <Drawer 

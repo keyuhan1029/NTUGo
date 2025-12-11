@@ -53,33 +53,41 @@ export default function TopBar() {
     loadUserInfo();
   }, []);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = React.useCallback(() => {
     setProfileModalOpen(true);
-  };
+  }, []);
 
-  const handleEditProfile = () => {
+  const handleEditProfile = React.useCallback(() => {
     setEditProfileModalOpen(true);
-  };
+  }, []);
 
-  const handleCalendarClick = () => {
+  const handleCalendarClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('Calendar clicked, current path:', pathname);
     // 第二次點擊回到主頁：在 /calendar 時再點一次 icon 就導回 /
     if (pathname === '/calendar') {
+      console.log('Navigating to /');
       router.push('/');
     } else {
+      console.log('Navigating to /calendar');
       router.push('/calendar');
     }
   };
 
-  const handleScheduleClick = () => {
-    // 課表功能（待實作）
+  const handleScheduleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('Schedule clicked, current path:', pathname);
+    // 課表功能
     if (pathname === '/schedule') {
+      console.log('Navigating to /');
       router.push('/');
     } else {
+      console.log('Navigating to /schedule');
       router.push('/schedule');
     }
   };
 
-  const handleProfileUpdate = () => {
+  const handleProfileUpdate = React.useCallback(() => {
     // 重新載入用戶資訊以更新頭像
     const loadUserInfo = async () => {
       const token = localStorage.getItem('token');
@@ -109,7 +117,7 @@ export default function TopBar() {
       }
     };
     loadUserInfo();
-  };
+  }, []);
 
   return (
     <>
@@ -126,6 +134,7 @@ export default function TopBar() {
           padding: '8px 16px',
           borderRadius: '24px',
           backdropFilter: 'blur(4px)',
+          pointerEvents: 'auto', // 確保可以接收點擊事件
         }}
       >
         <Tooltip title="通知">
@@ -136,12 +145,18 @@ export default function TopBar() {
           </IconButton>
         </Tooltip>
         <Tooltip title="個人行事曆">
-          <IconButton onClick={handleCalendarClick}>
+          <IconButton 
+            onClick={handleCalendarClick}
+            sx={{ pointerEvents: 'auto' }}
+          >
             <CalendarMonthIcon sx={{ color: 'black' }} />
           </IconButton>
         </Tooltip>
         <Tooltip title="課表">
-          <IconButton onClick={handleScheduleClick}>
+          <IconButton 
+            onClick={handleScheduleClick}
+            sx={{ pointerEvents: 'auto' }}
+          >
             <ClassIcon sx={{ color: 'black' }} />
           </IconButton>
         </Tooltip>

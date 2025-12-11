@@ -29,10 +29,17 @@ interface ScheduleItemClient extends ScheduleItem {
 
 export default function SchedulePage() {
   const router = useRouter();
+  const routerRef = React.useRef(router);
   const scheduleGridRef = React.useRef<HTMLDivElement>(null);
+  const loadSchedulesRef = React.useRef<(() => Promise<void>) | null>(null);
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean | null>(
     null
   );
+
+  // 更新 router ref
+  React.useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [schedules, setSchedules] = React.useState<Schedule[]>([]);
   const [currentScheduleId, setCurrentScheduleId] = React.useState<string | null>(null);
@@ -46,40 +53,27 @@ export default function SchedulePage() {
   } | null>(null);
   const [exporting, setExporting] = React.useState(false);
 
-  React.useEffect(() => {
-    const checkAuth = async () => {
+  const loadScheduleItems = React.useCallback(async (scheduleId: string) => {
+    try {
       const token = localStorage.getItem('token');
+      const response = await fetch(`/api/schedule/${scheduleId}/items`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (!token) {
-        router.push('/login');
-        return;
+      if (!response.ok) {
+        throw new Error('載入課程項目失敗');
       }
 
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const data = await response.json();
+      setItems(data.items || []);
+    } catch (error) {
+      console.error('載入課程項目失敗:', error);
+    }
+  }, []);
 
-        if (!response.ok) {
-          localStorage.removeItem('token');
-          router.push('/login');
-          return;
-        }
-
-        setIsAuthenticated(true);
-        loadSchedules();
-      } catch {
-        localStorage.removeItem('token');
-        router.push('/login');
-      }
-    };
-
-    checkAuth();
-  }, [router]);
-
-  const loadSchedules = async () => {
+  const loadSchedules = React.useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/schedule', {
@@ -124,27 +118,48 @@ export default function SchedulePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadScheduleItems]);
 
-  const loadScheduleItems = async (scheduleId: string) => {
-    try {
+  // 更新 loadSchedules ref
+  React.useEffect(() => {
+    loadSchedulesRef.current = loadSchedules;
+  }, [loadSchedules]);
+
+  // 驗證登入
+  React.useEffect(() => {
+    const checkAuth = async () => {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/schedule/${scheduleId}/items`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
 
-      if (!response.ok) {
-        throw new Error('載入課程項目失敗');
+      if (!token) {
+        routerRef.current.push('/login');
+        return;
       }
 
-      const data = await response.json();
-      setItems(data.items || []);
-    } catch (error) {
-      console.error('載入課程項目失敗:', error);
-    }
-  };
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          localStorage.removeItem('token');
+          routerRef.current.push('/login');
+          return;
+        }
+
+        setIsAuthenticated(true);
+        if (loadSchedulesRef.current) {
+          loadSchedulesRef.current();
+        }
+      } catch {
+        localStorage.removeItem('token');
+        routerRef.current.push('/login');
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleSelectSchedule = async (scheduleId: string) => {
     setCurrentScheduleId(scheduleId);
@@ -361,17 +376,21 @@ export default function SchedulePage() {
 
   if (isAuthenticated === null || loading) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          width: '100vw',
-        }}
-      >
-        <CircularProgress />
-      </Box>
+      <MainLayout>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100%',
+            width: '100%',
+            backgroundColor: '#ffffff',
+            zIndex: 10,
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      </MainLayout>
     );
   }
 
@@ -384,6 +403,7 @@ export default function SchedulePage() {
       <Box
         sx={{
           display: 'flex',
+          width: '100%',
           height: '100%',
           pt: 10, // 避免被 TopBar 擋住
           px: 3,
@@ -391,6 +411,9 @@ export default function SchedulePage() {
           gap: 3,
           overflow: 'hidden',
           boxSizing: 'border-box',
+          backgroundColor: '#ffffff',
+          position: 'relative',
+          zIndex: 100,
         }}
       >
         {/* 左側課表區域 */}

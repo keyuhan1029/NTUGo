@@ -117,9 +117,15 @@ function toLocalInputValue(date: Date) {
 
 export default function CalendarPage() {
   const router = useRouter();
+  const routerRef = React.useRef(router);
   const [isAuthenticated, setIsAuthenticated] = React.useState<boolean | null>(
     null
   );
+
+  // 更新 router ref
+  React.useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
   const [ntuEvents, setNtuEvents] = React.useState<CalendarEvent[]>([]);
@@ -146,7 +152,7 @@ export default function CalendarPage() {
       const token = localStorage.getItem('token');
 
       if (!token) {
-        router.push('/login');
+        routerRef.current.push('/login');
         return;
       }
 
@@ -159,19 +165,19 @@ export default function CalendarPage() {
 
         if (!response.ok) {
           localStorage.removeItem('token');
-          router.push('/login');
+          routerRef.current.push('/login');
           return;
         }
 
         setIsAuthenticated(true);
       } catch {
         localStorage.removeItem('token');
-        router.push('/login');
+        routerRef.current.push('/login');
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, []);
 
   // 載入當月 NTU 活動與個人行程
   React.useEffect(() => {
@@ -229,17 +235,21 @@ export default function CalendarPage() {
 
   if (isAuthenticated === null) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          width: '100vw',
-        }}
-      >
-        <CircularProgress />
-      </Box>
+      <MainLayout>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100%',
+            width: '100%',
+            backgroundColor: '#ffffff',
+            zIndex: 10,
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      </MainLayout>
     );
   }
 
@@ -668,10 +678,14 @@ export default function CalendarPage() {
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
+          width: '100%',
           height: '100%',
           p: 3,
+          pt: 10,
           boxSizing: 'border-box',
           overflowY: 'auto',
+          backgroundColor: '#ffffff',
+          zIndex: 100,
         }}
       >
         {/* 上方控制列 */}

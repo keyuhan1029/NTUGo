@@ -22,23 +22,27 @@ export default function BikeMarkerButton({
         position: 'absolute',
         bottom: 100,
         right: 16,
-        zIndex: 1100,
+        zIndex: 1200,
+        pointerEvents: 'auto',
       }}
     >
       <Tooltip title={isMarkingMode ? '取消標記模式' : '標記腳踏車位置'}>
-        <IconButton
-          onClick={onToggleMarkingMode}
-          sx={{
-            backgroundColor: isMarkingMode ? '#f44336' : '#ffffff',
-            color: isMarkingMode ? '#ffffff' : '#333333',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            '&:hover': {
-              backgroundColor: isMarkingMode ? '#d32f2f' : '#f5f5f5',
-            },
-          }}
-        >
-          {isMarkingMode ? <AddLocationAltIcon /> : <AddLocationIcon />}
-        </IconButton>
+        <span>
+          <IconButton
+            onClick={onToggleMarkingMode}
+            sx={{
+              backgroundColor: isMarkingMode ? '#f44336' : '#ffffff',
+              color: isMarkingMode ? '#ffffff' : '#333333',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              pointerEvents: 'auto',
+              '&:hover': {
+                backgroundColor: isMarkingMode ? '#d32f2f' : '#f5f5f5',
+              },
+            }}
+          >
+            {isMarkingMode ? <AddLocationAltIcon /> : <AddLocationIcon />}
+          </IconButton>
+        </span>
       </Tooltip>
     </Box>
   );

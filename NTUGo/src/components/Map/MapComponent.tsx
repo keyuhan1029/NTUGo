@@ -548,57 +548,96 @@ export default function MapComponent() {
     }
   }, [isLoaded, showBusStops]);
 
+  // 使用 ref 存储最新的值，避免依赖项变化导致无限循环
+  const showYouBikeStationsRef = React.useRef(showYouBikeStations);
+  const showBusStopsRef = React.useRef(showBusStops);
+  const showMetroStationsRef = React.useRef(showMetroStations);
+  const youbikeStationsRef = React.useRef(youbikeStations);
+  const busStopsRef = React.useRef(busStops);
+  const metroStationsRef = React.useRef(metroStations);
+  const updateStationsTriggerRef = React.useRef<(() => void) | null>(null);
+
+  // 更新 refs（不触发更新，避免循环）
+  React.useEffect(() => {
+    showYouBikeStationsRef.current = showYouBikeStations;
+    showBusStopsRef.current = showBusStops;
+    showMetroStationsRef.current = showMetroStations;
+    youbikeStationsRef.current = youbikeStations;
+    busStopsRef.current = busStops;
+    metroStationsRef.current = metroStations;
+  }, [showYouBikeStations, showBusStops, showMetroStations, youbikeStations, busStops, metroStations]);
+
+  // 当状态改变时，触发一次更新（使用单独的 useEffect 避免循环）
+  React.useEffect(() => {
+    if (updateStationsTriggerRef.current && map) {
+      updateStationsTriggerRef.current();
+    }
+  }, [showYouBikeStations, showBusStops, showMetroStations, map]);
+
   // 當 showYouBikeStations、showBusStops、showMetroStations 或地圖範圍變化時，更新可見站點
   // 注意：youbikeStations 已經過濾為台大圖書館2公里內的站點
   React.useEffect(() => {
     if (!map) return;
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const updateVisibleStations = () => {
-      if (showYouBikeStations && youbikeStations.length > 0) {
-        const bounds = map.getBounds();
-        if (bounds) {
-          // 只顯示在地圖視窗內且已在2公里範圍內的站點
-          const visible = youbikeStations.filter((station) => {
-            const latLng = new google.maps.LatLng(station.lat, station.lng);
-            return bounds.contains(latLng);
-          });
-          setVisibleYouBikeStations(visible);
-        }
-      } else {
-        setVisibleYouBikeStations([]);
+      // 清除之前的 timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
 
-      // 更新可見的公車站牌
-      if (showBusStops && busStops.length > 0) {
-        const bounds = map.getBounds();
-        if (bounds) {
-          const visible = busStops.filter((stop) => {
-            const latLng = new google.maps.LatLng(
-              stop.StopPosition.PositionLat,
-              stop.StopPosition.PositionLon
-            );
-            return bounds.contains(latLng);
-          });
-          setVisibleBusStops(visible);
+      // 防抖：延迟 100ms 执行
+      timeoutId = setTimeout(() => {
+        if (showYouBikeStationsRef.current && youbikeStationsRef.current.length > 0) {
+          const bounds = map.getBounds();
+          if (bounds) {
+            // 只顯示在地圖視窗內且已在2公里範圍內的站點
+            const visible = youbikeStationsRef.current.filter((station) => {
+              const latLng = new google.maps.LatLng(station.lat, station.lng);
+              return bounds.contains(latLng);
+            });
+            setVisibleYouBikeStations(visible);
+          }
+        } else {
+          setVisibleYouBikeStations([]);
         }
-      } else {
-        setVisibleBusStops([]);
-      }
 
-      // 更新可見的捷運站
-      if (showMetroStations && metroStations.length > 0) {
-        const bounds = map.getBounds();
-        if (bounds) {
-          const visible = metroStations.filter((station) => {
-            const latLng = new google.maps.LatLng(station.lat, station.lng);
-            return bounds.contains(latLng);
-          });
-          setVisibleMetroStations(visible);
+        // 更新可見的公車站牌
+        if (showBusStopsRef.current && busStopsRef.current.length > 0) {
+          const bounds = map.getBounds();
+          if (bounds) {
+            const visible = busStopsRef.current.filter((stop) => {
+              const latLng = new google.maps.LatLng(
+                stop.StopPosition.PositionLat,
+                stop.StopPosition.PositionLon
+              );
+              return bounds.contains(latLng);
+            });
+            setVisibleBusStops(visible);
+          }
+        } else {
+          setVisibleBusStops([]);
         }
-      } else {
-        setVisibleMetroStations([]);
-      }
+
+        // 更新可見的捷運站
+        if (showMetroStationsRef.current && metroStationsRef.current.length > 0) {
+          const bounds = map.getBounds();
+          if (bounds) {
+            const visible = metroStationsRef.current.filter((station) => {
+              const latLng = new google.maps.LatLng(station.lat, station.lng);
+              return bounds.contains(latLng);
+            });
+            setVisibleMetroStations(visible);
+          }
+        } else {
+          setVisibleMetroStations([]);
+        }
+      }, 100);
     };
+
+    // 存储更新函数到 ref，以便外部触发
+    updateStationsTriggerRef.current = updateVisibleStations;
 
     // 初始更新
     updateVisibleStations();
@@ -610,11 +649,15 @@ export default function MapComponent() {
 
     // 清理監聽器
     return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      updateStationsTriggerRef.current = null;
       google.maps.event.removeListener(boundsListener);
       google.maps.event.removeListener(zoomListener);
       google.maps.event.removeListener(centerListener);
     };
-  }, [map, showYouBikeStations, youbikeStations, showBusStops, busStops, showMetroStations, metroStations]);
+  }, [map]);
 
   // 當顯示捷運站時，獲取所有車站的出口數據
   React.useEffect(() => {
@@ -880,7 +923,7 @@ export default function MapComponent() {
   }
 
   return (
-    <>
+    <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
       {/* 返回當前位置按鈕 */}
       <CurrentLocationButton
         currentLocation={currentLocation}
@@ -1267,6 +1310,6 @@ export default function MapComponent() {
         />
       )}
     </GoogleMap>
-    </>
+    </Box>
   );
 }
