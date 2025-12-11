@@ -236,7 +236,8 @@ export default function MapComponent() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setUserBikeMarkers(data.markers || []);
+          // 每個用戶只能有一個標記
+          setUserBikeMarkers(data.marker ? [data.marker] : []);
         }
       }
     } catch (error) {
@@ -272,7 +273,8 @@ export default function MapComponent() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setUserBikeMarkers((prev) => [data.marker, ...prev]);
+          // 替換舊標記（每個用戶只能有一個標記）
+          setUserBikeMarkers(data.marker ? [data.marker] : []);
           // 標記後自動關閉標記模式
           setIsMarkingMode(false);
         }

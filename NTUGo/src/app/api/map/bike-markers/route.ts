@@ -25,16 +25,19 @@ export async function GET(request: Request) {
 
     const markers = await BikeMarkerModel.findByUserId(payload.userId);
     
+    // 每個用戶只能有一個標記，所以返回第一個（如果有的話）
+    const marker = markers.length > 0 ? markers[0] : null;
+    
     return NextResponse.json({
       success: true,
-      markers: markers.map((marker) => ({
+      marker: marker ? {
         _id: marker._id instanceof ObjectId ? marker._id.toString() : marker._id,
         lat: marker.lat,
         lng: marker.lng,
         note: marker.note,
         createdAt: marker.createdAt,
         updatedAt: marker.updatedAt,
-      })),
+      } : null,
     });
   } catch (error: any) {
     console.error('獲取腳踏車標記錯誤:', error);
@@ -74,6 +77,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // 先刪除該用戶的所有舊標記（每個用戶只能有一個標記）
+    await BikeMarkerModel.deleteAllByUserId(payload.userId);
+
+    // 創建新標記
     const marker = await BikeMarkerModel.create({
       userId: payload.userId,
       lat,
