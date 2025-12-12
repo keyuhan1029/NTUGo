@@ -11,7 +11,9 @@ import FriendRequests from '@/components/Community/FriendRequests';
 import FriendSuggestions from '@/components/Community/FriendSuggestions';
 import ChatRoom from '@/components/Community/ChatRoom';
 import UserProfileModal from '@/components/Community/UserProfileModal';
+import CreateGroupModal from '@/components/Community/CreateGroupModal';
 import { PusherProvider } from '@/contexts/PusherContext';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
 
 interface SelectedChat {
   roomId: string;
@@ -19,6 +21,7 @@ interface SelectedChat {
   name: string;
   avatar?: string;
   friendId?: string;
+  memberIds?: string[];
 }
 
 export default function CommunityPage() {
@@ -29,6 +32,10 @@ export default function CommunityPage() {
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
   const [userProfileOpen, setUserProfileOpen] = React.useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = React.useState(false);
+
+  // 心跳功能 - 保持線上狀態
+  useHeartbeat();
 
   React.useEffect(() => {
     const token = localStorage.getItem('token');
@@ -65,6 +72,15 @@ export default function CommunityPage() {
       avatar,
       friendId: userId,
     });
+  };
+
+  const handleGroupCreated = (roomId: string, name: string) => {
+    handleSelectChat({
+      roomId,
+      type: 'group',
+      name,
+    });
+    handleRefresh();
   };
 
   if (loading) {
@@ -155,6 +171,7 @@ export default function CommunityPage() {
               key={`messages-${refreshKey}`}
               onSelectChat={handleSelectChat}
               selectedRoomId={selectedChat?.roomId}
+              onCreateGroup={() => setCreateGroupOpen(true)}
             />
           </Box>
         </Box>
@@ -177,6 +194,7 @@ export default function CommunityPage() {
               friendId={selectedChat.friendId}
               name={selectedChat.name}
               avatar={selectedChat.avatar}
+              type={selectedChat.type}
               onClose={handleCloseChat}
               onRoomCreated={(newRoomId) => {
                 setSelectedChat(prev => prev ? { ...prev, roomId: newRoomId } : null);
@@ -217,6 +235,14 @@ export default function CommunityPage() {
         onClose={() => setUserProfileOpen(false)}
         userId={selectedUserId}
         onStartChat={handleStartChatFromProfile}
+        onFriendRemoved={handleRefresh}
+      />
+      
+      {/* 建立群組 Modal */}
+      <CreateGroupModal
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onGroupCreated={handleGroupCreated}
       />
       </PusherProvider>
     </MainLayout>

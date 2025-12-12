@@ -67,7 +67,14 @@ export function PusherProvider({ children }: PusherProviderProps) {
     });
 
     pusherInstance.connection.bind('error', (err: any) => {
-      console.error('Pusher 錯誤:', err);
+      // Pusher 錯誤物件需要特殊處理才能正確顯示
+      if (err?.error?.data) {
+        console.error('Pusher 錯誤:', err.error.data.code, err.error.data.message);
+      } else if (err?.type) {
+        console.error('Pusher 錯誤類型:', err.type, err.error || '');
+      } else {
+        console.error('Pusher 連線錯誤:', JSON.stringify(err, null, 2));
+      }
     });
 
     setPusher(pusherInstance);
@@ -121,7 +128,8 @@ export function PusherProvider({ children }: PusherProviderProps) {
 // 聊天室訊息 Hook
 export function useChatRoomMessages(
   roomId: string | null,
-  onNewMessage?: (message: any) => void
+  onNewMessage?: (message: any) => void,
+  onMessageRead?: (data: { readerId: string; readerName?: string; readAt: string }) => void
 ) {
   const { subscribeToChannel, unsubscribeFromChannel } = usePusher();
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -139,25 +147,33 @@ export function useChatRoomMessages(
         }
       });
 
+      channel.bind('message-read', (data: any) => {
+        if (onMessageRead) {
+          onMessageRead(data);
+        }
+      });
+
       channel.bind('pusher:subscription_succeeded', () => {
         setIsSubscribed(true);
       });
 
-      channel.bind('pusher:subscription_error', () => {
+      channel.bind('pusher:subscription_error', (error: any) => {
         setIsSubscribed(false);
+        console.error(`頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
       });
     }
 
     return () => {
       if (channel) {
         channel.unbind('new-message');
+        channel.unbind('message-read');
         channel.unbind('pusher:subscription_succeeded');
         channel.unbind('pusher:subscription_error');
       }
       unsubscribeFromChannel(channelName);
       setIsSubscribed(false);
     };
-  }, [roomId, subscribeToChannel, unsubscribeFromChannel, onNewMessage]);
+  }, [roomId, subscribeToChannel, unsubscribeFromChannel, onNewMessage, onMessageRead]);
 
   return { isSubscribed };
 }
@@ -180,6 +196,11 @@ export function useUserNotifications(
     const channel = subscribeToChannel(channelName);
 
     if (channel) {
+      // 處理訂閱錯誤
+      channel.bind('pusher:subscription_error', (error: any) => {
+        console.error(`頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
+      });
+
       if (callbacks?.onFriendRequest) {
         channel.bind('friend-request', callbacks.onFriendRequest);
       }

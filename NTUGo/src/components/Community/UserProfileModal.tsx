@@ -31,19 +31,22 @@ interface UserProfileModalProps {
   onClose: () => void;
   userId: string | null;
   onStartChat?: (userId: string, name: string, avatar?: string) => void;
+  onFriendRemoved?: () => void;
 }
 
 export default function UserProfileModal({ 
   open, 
   onClose, 
   userId,
-  onStartChat 
+  onStartChat,
+  onFriendRemoved,
 }: UserProfileModalProps) {
   const [user, setUser] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<string>('');
   const [sendingRequest, setSendingRequest] = React.useState(false);
+  const [removingFriend, setRemovingFriend] = React.useState(false);
 
   React.useEffect(() => {
     if (open && userId) {
@@ -152,30 +155,91 @@ export default function UserProfileModal({
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (!user || !user.friendshipId || removingFriend) return;
+
+    const confirmRemove = window.confirm(`確定要刪除好友「${user.name || user.userId || '用戶'}」嗎？`);
+    if (!confirmRemove) return;
+
+    try {
+      setRemovingFriend(true);
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`/api/community/friends/${user.friendshipId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || '刪除好友失敗');
+      }
+
+      // 更新狀態
+      setUser(prev => prev ? {
+        ...prev,
+        friendshipStatus: 'none',
+        friendshipId: null,
+        friendshipDirection: null,
+      } : null);
+
+      onFriendRemoved?.();
+    } catch (error: any) {
+      alert(error.message || '刪除好友失敗');
+    } finally {
+      setRemovingFriend(false);
+    }
+  };
+
   const getFriendshipButton = () => {
     if (!user) return null;
 
     if (user.friendshipStatus === 'accepted') {
       return (
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={handleStartChat}
-          sx={{
-            mb: 2,
-            py: 1.5,
-            borderRadius: 2,
-            backgroundColor: '#0F4C75',
-            color: '#ffffff',
-            fontWeight: 600,
-            textTransform: 'none',
-            '&:hover': {
-              backgroundColor: '#0a3a5a',
-            },
-          }}
-        >
-          發送訊息
-        </Button>
+        <>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={handleStartChat}
+            sx={{
+              mb: 1.5,
+              py: 1.5,
+              borderRadius: 2,
+              backgroundColor: '#0F4C75',
+              color: '#ffffff',
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': {
+                backgroundColor: '#0a3a5a',
+              },
+            }}
+          >
+            發送訊息
+          </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={handleRemoveFriend}
+            disabled={removingFriend}
+            sx={{
+              mb: 2,
+              py: 1.5,
+              borderRadius: 2,
+              borderColor: '#f44336',
+              color: '#f44336',
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': {
+                backgroundColor: '#ffebee',
+                borderColor: '#d32f2f',
+              },
+            }}
+          >
+            {removingFriend ? <CircularProgress size={20} sx={{ color: '#f44336' }} /> : '刪除好友'}
+          </Button>
+        </>
       );
     }
 

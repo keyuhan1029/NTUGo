@@ -363,11 +363,11 @@ export default function EditProfileModal({ open, onClose, onUpdate }: EditProfil
                         <em>未選擇</em>
                       </MenuItem>
                       {NTU_DEPARTMENTS.map((category) => [
-                        <ListSubheader key={category.name} sx={{ fontWeight: 700, color: '#0F4C75' }}>
+                        <ListSubheader key={`category-${category.name}`} sx={{ fontWeight: 700, color: '#0F4C75' }}>
                           {category.name}
                         </ListSubheader>,
                         ...category.departments.map((dept) => (
-                          <MenuItem key={dept} value={dept} sx={{ pl: 4 }}>
+                          <MenuItem key={`${category.name}-${dept}`} value={dept} sx={{ pl: 4 }}>
                             {dept}
                           </MenuItem>
                         )),

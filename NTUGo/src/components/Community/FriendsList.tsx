@@ -22,11 +22,20 @@ interface Friend {
   name?: string | null;
   avatar?: string | null;
   department?: string | null;
+  lastSeen?: string | null;
   status?: {
     status: string;
     location?: string | null;
     courseName?: string | null;
   };
+}
+
+// 判斷用戶是否在線（30 秒內有心跳）
+function isUserOnline(lastSeen?: string | null): boolean {
+  if (!lastSeen) return false;
+  const now = new Date();
+  const diff = now.getTime() - new Date(lastSeen).getTime();
+  return diff < 30000; // 30 秒
 }
 
 interface FriendsListProps {
@@ -83,6 +92,7 @@ export default function FriendsList({ onSelectFriend, onViewProfile }: FriendsLi
         name: f.friend.name,
         avatar: f.friend.avatar,
         department: f.friend.department,
+        lastSeen: f.friend.lastSeen,
       }));
 
       // 取得好友狀態
@@ -195,24 +205,39 @@ export default function FriendsList({ onSelectFriend, onViewProfile }: FriendsLi
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar
-                      src={friend.avatar || undefined}
-                      sx={{
-                        bgcolor: '#0F4C75',
-                        width: 44,
-                        height: 44,
-                        cursor: 'pointer',
-                        '&:hover': {
-                          opacity: 0.8,
-                        },
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewProfile?.(friend.id);
-                      }}
-                    >
-                      {(friend.name || friend.userId)?.[0]?.toUpperCase()}
-                    </Avatar>
+                    <Box sx={{ position: 'relative' }}>
+                      <Avatar
+                        src={friend.avatar || undefined}
+                        sx={{
+                          bgcolor: '#0F4C75',
+                          width: 44,
+                          height: 44,
+                          cursor: 'pointer',
+                          '&:hover': {
+                            opacity: 0.8,
+                          },
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewProfile?.(friend.id);
+                        }}
+                      >
+                        {(friend.name || friend.userId)?.[0]?.toUpperCase()}
+                      </Avatar>
+                      {/* 線上狀態指示器 */}
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          bottom: 2,
+                          right: 2,
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          bgcolor: isUserOnline(friend.lastSeen) ? '#4caf50' : '#bdbdbd',
+                          border: '2px solid #fff',
+                        }}
+                      />
+                    </Box>
                   </ListItemAvatar>
                   <ListItemText
                     primary={

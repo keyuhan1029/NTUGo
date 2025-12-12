@@ -1,12 +1,25 @@
 import { ObjectId } from 'mongodb';
 import { getDatabase } from '../mongodb';
 
+export type MessageType = 'text' | 'image' | 'file';
+
+export interface FileInfo {
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  width?: number;
+  height?: number;
+}
+
 export interface Message {
   _id?: string | ObjectId;
   chatRoomId: ObjectId;
   senderId: ObjectId;
+  type: MessageType;
   content: string;
-  readBy?: ObjectId[]; // 已讀用戶列表
+  file?: FileInfo;        // 檔案資訊（圖片或檔案）
+  readBy?: ObjectId[];    // 已讀用戶列表
   createdAt: Date;
 }
 
@@ -26,7 +39,11 @@ export class MessageModel {
   static async create(
     chatRoomId: string | ObjectId,
     senderId: string | ObjectId,
-    content: string
+    content: string,
+    options?: {
+      type?: MessageType;
+      file?: FileInfo;
+    }
   ): Promise<Message> {
     const db = await getDatabase();
 
@@ -36,7 +53,9 @@ export class MessageModel {
     const newMessage: Message = {
       chatRoomId: roomObjId,
       senderId: senderObjId,
+      type: options?.type || 'text',
       content,
+      file: options?.file,
       readBy: [senderObjId], // 發送者自動已讀
       createdAt: new Date(),
     };

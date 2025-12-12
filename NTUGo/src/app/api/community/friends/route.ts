@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { verifyToken, getTokenFromRequest } from '@/lib/jwt';
 import { FriendshipModel } from '@/lib/models/Friendship';
 import { UserModel } from '@/lib/models/User';
+import { NotificationModel } from '@/lib/models/Notification';
+import { triggerFriendRequest } from '@/lib/pusher';
 import { ObjectId } from 'mongodb';
 
 // 取得好友列表
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
           avatar: friend.avatar || null,
           department: friend.department || null,
           email: friend.email,
+          lastSeen: friend.lastSeen || null,
         } : null,
         since: friendship.updatedAt,
       };
@@ -128,12 +131,41 @@ export async function POST(request: Request) {
 
     const friendship = await FriendshipModel.sendRequest(payload.userId, targetUserId);
 
+    // 取得發送者資訊
+    const sender = await UserModel.findById(payload.userId);
+    const friendshipId = friendship._id instanceof ObjectId 
+      ? friendship._id.toString() 
+      : String(friendship._id);
+
+    // 建立通知
+    try {
+      await NotificationModel.create({
+        userId: targetUserId,
+        type: 'friend_request',
+        title: '新的好友請求',
+        content: `${sender?.name || '某位用戶'} 想要加你為好友`,
+        relatedId: friendshipId,
+        senderId: payload.userId,
+      });
+
+      // 透過 Pusher 即時推送通知
+      await triggerFriendRequest(targetUserId, {
+        friendshipId,
+        from: {
+          id: payload.userId,
+          name: sender?.name || undefined,
+          avatar: sender?.avatar || undefined,
+        },
+      });
+    } catch (notifError) {
+      // 通知錯誤不影響主流程
+      console.warn('發送通知失敗:', notifError);
+    }
+
     return NextResponse.json({
       message: '好友請求已發送',
       friendship: {
-        id: friendship._id instanceof ObjectId 
-          ? friendship._id.toString() 
-          : String(friendship._id),
+        id: friendshipId,
         status: friendship.status,
         createdAt: friendship.createdAt,
       },

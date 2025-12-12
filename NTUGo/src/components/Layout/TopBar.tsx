@@ -12,6 +12,22 @@ import Badge from '@mui/material/Badge';
 import Tooltip from '@mui/material/Tooltip';
 import ProfileModal from '@/components/Auth/ProfileModal';
 import EditProfileModal from '@/components/Auth/EditProfileModal';
+import NotificationMenu from '@/components/Layout/NotificationMenu';
+
+interface NotificationItem {
+  id: string;
+  type: 'friend_request' | 'friend_accepted' | 'new_message' | 'group_invite';
+  title: string;
+  content: string;
+  relatedId?: string | null;
+  isRead: boolean;
+  createdAt: string;
+  sender?: {
+    id: string;
+    name?: string | null;
+    avatar?: string | null;
+  } | null;
+}
 
 export default function TopBar() {
   const router = useRouter();
@@ -20,6 +36,13 @@ export default function TopBar() {
   const [editProfileModalOpen, setEditProfileModalOpen] = React.useState(false);
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
   const [userInitial, setUserInitial] = React.useState<string>('U');
+  const [userId, setUserId] = React.useState<string | null>(null);
+  
+  // 通知狀態
+  const [notificationAnchor, setNotificationAnchor] = React.useState<HTMLElement | null>(null);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
 
   React.useEffect(() => {
     // 載入用戶資訊以顯示頭像
@@ -35,6 +58,7 @@ export default function TopBar() {
           if (response.ok) {
             const data = await response.json();
             if (data.user) {
+              setUserId(data.user.id);
               if (data.user.avatar) {
                 setUserAvatar(data.user.avatar);
               }
@@ -51,6 +75,31 @@ export default function TopBar() {
       }
     };
     loadUserInfo();
+  }, []);
+
+  // 定期載入未讀通知數量
+  React.useEffect(() => {
+    const loadUnreadCount = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const response = await fetch('/api/notifications?unreadOnly=true&limit=1', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+      } catch (error) {
+        // 靜默失敗
+      }
+    };
+
+    loadUnreadCount();
+    const interval = setInterval(loadUnreadCount, 30000); // 每 30 秒更新一次
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleProfileClick = React.useCallback(() => {
@@ -119,6 +168,96 @@ export default function TopBar() {
     loadUserInfo();
   }, []);
 
+  // 通知相關處理
+  const handleNotificationClick = async (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationAnchor(event.currentTarget);
+    await loadNotifications();
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchor(null);
+  };
+
+  const loadNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      setNotificationsLoading(true);
+      const response = await fetch('/api/notifications?limit=20', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('載入通知失敗:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'markAsRead', notificationId }),
+      });
+
+      // 更新本地狀態
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('標記已讀失敗:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'markAllAsRead' }),
+      });
+
+      // 更新本地狀態
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('標記全部已讀失敗:', error);
+    }
+  };
+
+  const handleNotificationItemClick = (notification: NotificationItem) => {
+    handleNotificationClose();
+    
+    // 根據通知類型跳轉
+    if (notification.type === 'friend_request' || notification.type === 'friend_accepted') {
+      router.push('/community');
+    } else if (notification.type === 'new_message' && notification.relatedId) {
+      router.push('/community');
+    } else if (notification.type === 'group_invite') {
+      router.push('/community');
+    }
+  };
+
   return (
     <>
       <Box
@@ -138,8 +277,8 @@ export default function TopBar() {
         }}
       >
         <Tooltip title="通知">
-          <IconButton>
-            <Badge badgeContent={0} color="error">
+          <IconButton onClick={handleNotificationClick}>
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsIcon sx={{ color: 'black' }} />
             </Badge>
           </IconButton>
@@ -182,6 +321,17 @@ export default function TopBar() {
         open={editProfileModalOpen}
         onClose={() => setEditProfileModalOpen(false)}
         onUpdate={handleProfileUpdate}
+      />
+      
+      <NotificationMenu
+        anchorEl={notificationAnchor}
+        open={Boolean(notificationAnchor)}
+        onClose={handleNotificationClose}
+        notifications={notifications}
+        loading={notificationsLoading}
+        onMarkAsRead={handleMarkAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onNotificationClick={handleNotificationItemClick}
       />
     </>
   );

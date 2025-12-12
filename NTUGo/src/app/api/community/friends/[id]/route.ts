@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { verifyToken, getTokenFromRequest } from '@/lib/jwt';
 import { FriendshipModel } from '@/lib/models/Friendship';
+import { UserModel } from '@/lib/models/User';
+import { NotificationModel } from '@/lib/models/Notification';
+import { triggerFriendAccepted } from '@/lib/pusher';
 import { ObjectId } from 'mongodb';
 
 interface RouteParams {
@@ -49,12 +52,42 @@ export async function PUT(request: Request, { params }: RouteParams) {
         );
       }
 
+      // 取得接受者資訊
+      const accepter = await UserModel.findById(payload.userId);
+      const requesterId = friendship.requesterId.toString();
+      const friendshipId = friendship._id instanceof ObjectId 
+        ? friendship._id.toString() 
+        : String(friendship._id);
+
+      // 建立通知給原請求者
+      try {
+        await NotificationModel.create({
+          userId: requesterId,
+          type: 'friend_accepted',
+          title: '好友請求已接受',
+          content: `${accepter?.name || '某位用戶'} 接受了你的好友請求`,
+          relatedId: friendshipId,
+          senderId: payload.userId,
+        });
+
+        // 透過 Pusher 即時推送通知
+        await triggerFriendAccepted(requesterId, {
+          friendshipId,
+          friend: {
+            id: payload.userId,
+            name: accepter?.name || undefined,
+            avatar: accepter?.avatar || undefined,
+          },
+        });
+      } catch (notifError) {
+        // 通知錯誤不影響主流程
+        console.warn('發送通知失敗:', notifError);
+      }
+
       return NextResponse.json({
         message: '已接受好友請求',
         friendship: {
-          id: friendship._id instanceof ObjectId 
-            ? friendship._id.toString() 
-            : String(friendship._id),
+          id: friendshipId,
           status: friendship.status,
           updatedAt: friendship.updatedAt,
         },

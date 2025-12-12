@@ -12,8 +12,17 @@ export interface User {
   avatar?: string;
   department?: string; // 系所
   provider: 'email' | 'google'; // 登入方式
+  lastSeen?: Date; // 最後上線時間
   createdAt: Date;
   updatedAt: Date;
+}
+
+// 判斷用戶是否在線（30 秒內有心跳）
+export function isUserOnline(lastSeen?: Date): boolean {
+  if (!lastSeen) return false;
+  const now = new Date();
+  const diff = now.getTime() - new Date(lastSeen).getTime();
+  return diff < 30000; // 30 秒
 }
 
 export class UserModel {
@@ -203,6 +212,17 @@ export class UserModel {
       .limit(20)
       .toArray();
     return users;
+  }
+
+  // 更新最後上線時間（心跳）
+  static async updateLastSeen(userId: string | ObjectId): Promise<void> {
+    const db = await getDatabase();
+    const queryId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+    
+    await db.collection<User>('users').updateOne(
+      { _id: queryId },
+      { $set: { lastSeen: new Date() } }
+    );
   }
 }
 

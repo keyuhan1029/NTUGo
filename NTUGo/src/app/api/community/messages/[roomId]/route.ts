@@ -3,7 +3,8 @@ import { verifyToken, getTokenFromRequest } from '@/lib/jwt';
 import { ChatRoomModel } from '@/lib/models/ChatRoom';
 import { MessageModel } from '@/lib/models/Message';
 import { UserModel } from '@/lib/models/User';
-import { triggerNewMessage, triggerChatUpdate } from '@/lib/pusher';
+import { NotificationModel } from '@/lib/models/Notification';
+import { triggerNewMessage, triggerChatUpdate, triggerMessageRead } from '@/lib/pusher';
 import { ChatRoom } from '@/lib/models/ChatRoom';
 import { ObjectId } from 'mongodb';
 
@@ -57,7 +58,22 @@ export async function GET(request: Request, { params }: RouteParams) {
     const messages = await MessageModel.findByChatRoom(roomId, limit, before);
 
     // 標記訊息為已讀
-    await MessageModel.markAsRead(roomId, payload.userId);
+    const markedCount = await MessageModel.markAsRead(roomId, payload.userId);
+
+    // 如果有標記已讀，透過 Pusher 通知聊天室其他成員
+    if (markedCount > 0) {
+      try {
+        const reader = await UserModel.findById(payload.userId);
+        await triggerMessageRead(roomId, {
+          readerId: payload.userId,
+          readerName: reader?.name || undefined,
+          readAt: new Date().toISOString(),
+        });
+      } catch (pusherError) {
+        // Pusher 錯誤不影響主流程
+        console.warn('Pusher 推送已讀狀態失敗:', pusherError);
+      }
+    }
 
     // 取得發送者資訊
     const senderIds = [...new Set(messages.map(m => m.senderId.toString()))];
@@ -80,9 +96,12 @@ export async function GET(request: Request, { params }: RouteParams) {
           name: sender.name || null,
           avatar: sender.avatar || null,
         } : null,
+        type: msg.type || 'text',
         content: msg.content,
+        file: msg.file || null,
         createdAt: msg.createdAt,
         isOwn: msg.senderId.toString() === payload.userId,
+        readBy: msg.readBy?.map(id => id.toString()) || [],
       };
     });
 
@@ -137,9 +156,17 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { content } = body;
+    const { content, type, file } = body;
 
-    if (!content || content.trim().length === 0) {
+    // 檔案訊息可以沒有 content，但必須有 file
+    if (type === 'image' || type === 'file') {
+      if (!file || !file.url) {
+        return NextResponse.json(
+          { message: '檔案訊息必須包含檔案資訊' },
+          { status: 400 }
+        );
+      }
+    } else if (!content || content.trim().length === 0) {
       return NextResponse.json(
         { message: '訊息內容不能為空' },
         { status: 400 }
@@ -147,10 +174,15 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // 建立訊息
-    const message = await MessageModel.create(roomId, payload.userId, content.trim());
+    const messageContent = content?.trim() || (file?.name || '傳送了檔案');
+    const message = await MessageModel.create(roomId, payload.userId, messageContent, {
+      type: type || 'text',
+      file: file || undefined,
+    });
 
     // 更新聊天室最後訊息
-    await ChatRoomModel.updateLastMessage(roomId, content.trim());
+    const lastMessagePreview = type === 'image' ? '[圖片]' : type === 'file' ? `[檔案] ${file?.name || ''}` : messageContent;
+    await ChatRoomModel.updateLastMessage(roomId, lastMessagePreview);
 
     // 取得發送者資訊
     const sender = await UserModel.findById(payload.userId);
@@ -160,7 +192,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       senderId: payload.userId,
       senderName: sender?.name || null,
       senderAvatar: sender?.avatar || null,
+      type: message.type,
       content: message.content,
+      file: message.file || null,
       createdAt: message.createdAt,
     };
 
@@ -177,7 +211,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         
         const chatUpdateData = {
           roomId,
-          lastMessage: content.trim(),
+          lastMessage: lastMessagePreview,
           lastMessageAt: message.createdAt.toISOString(),
           senderId: payload.userId,
           senderName: sender?.name || undefined,
@@ -187,6 +221,31 @@ export async function POST(request: Request, { params }: RouteParams) {
         await Promise.all(
           otherMembers.map((memberId) =>
             triggerChatUpdate(memberId.toString(), chatUpdateData)
+          )
+        );
+
+        // 建立訊息通知（儲存到資料庫）
+        const notificationTitle = chatRoom.type === 'group'
+          ? `${chatRoom.name || '群組'}`
+          : (sender?.name || '有人');
+        const notificationContent = type === 'image'
+          ? '傳送了一張圖片'
+          : type === 'file'
+          ? `傳送了檔案：${file?.name || '檔案'}`
+          : messageContent.length > 50
+          ? messageContent.substring(0, 50) + '...'
+          : messageContent;
+
+        await Promise.all(
+          otherMembers.map((memberId) =>
+            NotificationModel.create({
+              userId: memberId.toString(),
+              type: 'new_message',
+              title: notificationTitle,
+              content: notificationContent,
+              relatedId: roomId,
+              senderId: payload.userId,
+            })
           )
         );
       }
@@ -205,6 +264,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           avatar: sender.avatar || null,
         } : null,
         isOwn: true,
+        readBy: [payload.userId],
       },
     });
   } catch (error: any) {

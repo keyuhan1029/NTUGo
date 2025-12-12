@@ -392,13 +392,115 @@ export async function GET(
 
 ---
 
+## 社群功能擴展（2024-12-12）
+
+### 新增功能
+
+#### 1. 線上狀態（心跳機制）
+
+- **後端**：User Model 新增 `lastSeen` 欄位
+- **API**：`POST /api/community/heartbeat` 更新用戶最後上線時間
+- **前端**：`useHeartbeat` Hook 每 25 秒發送心跳
+- **判斷邏輯**：30 秒內有心跳 = 在線（綠色圓點），否則為離線（灰色圓點）
+
+#### 2. 刪除好友
+
+- **位置**：UserProfileModal 中新增「刪除好友」按鈕
+- **確認**：刪除前會彈出確認對話框
+- **API**：已存在 `DELETE /api/community/friends/:id`
+
+#### 3. 訊息已讀狀態
+
+- **資料模型**：Message 已有 `readBy` 欄位儲存已讀用戶 ID 列表
+- **Pusher 事件**：新增 `message-read` 事件即時推送已讀狀態
+- **前端顯示**：
+  - 單勾（灰色）：已發送
+  - 雙勾（綠色）：對方已讀
+
+#### 4. 通知系統
+
+- **資料模型**：新增 `Notification` Model
+- **API**：`GET/POST /api/notifications`
+- **通知類型**：
+  - `friend_request`：好友請求通知
+  - `friend_accepted`：好友接受通知
+  - `new_message`：新訊息通知
+  - `group_invite`：群組邀請通知
+- **前端**：TopBar 通知圖示 + 下拉選單
+- **即時推送**：透過 Pusher 即時推送通知
+
+#### 5. 檔案傳送（Cloudinary）
+
+- **後端設定**：`src/lib/cloudinary.ts`
+- **上傳 API**：`POST /api/upload`
+- **支援格式**：
+  - 圖片：JPEG、PNG、GIF、WebP
+  - 檔案：PDF、Word、Excel、純文字
+- **大小限制**：10MB
+- **Message 欄位擴充**：
+  - `type`：'text' | 'image' | 'file'
+  - `file`：{ url, name, size, mimeType, width?, height? }
+- **前端**：聊天室新增附件按鈕，支援圖片預覽和檔案下載
+
+#### 6. 群組聊天
+
+- **建立群組**：MessageList 新增「建立群組」按鈕
+- **CreateGroupModal**：選擇好友並輸入群組名稱
+- **群組顯示**：紫色頭像、顯示成員數量
+- **ChatRoom 擴充**：支援群組類型顯示
+
+### 新增檔案
+
+| 檔案路徑 | 說明 |
+|----------|------|
+| `src/lib/models/Notification.ts` | 通知資料模型 |
+| `src/lib/cloudinary.ts` | Cloudinary 設定與上傳功能 |
+| `src/app/api/notifications/route.ts` | 通知 API |
+| `src/app/api/community/heartbeat/route.ts` | 心跳 API |
+| `src/app/api/upload/route.ts` | 檔案上傳 API |
+| `src/hooks/useHeartbeat.ts` | 心跳 Hook |
+| `src/components/Layout/NotificationMenu.tsx` | 通知下拉選單 |
+| `src/components/Community/CreateGroupModal.tsx` | 建立群組 Modal |
+
+### 修改檔案
+
+| 檔案路徑 | 修改內容 |
+|----------|----------|
+| `src/lib/models/User.ts` | 新增 `lastSeen` 欄位、`updateLastSeen` 方法、`isUserOnline` 函式 |
+| `src/lib/models/Message.ts` | 新增 `type`、`file` 欄位 |
+| `src/lib/pusher.ts` | 新增 `triggerMessageRead` 函式 |
+| `src/contexts/PusherContext.tsx` | `useChatRoomMessages` 新增 `onMessageRead` 回調 |
+| `src/components/Layout/TopBar.tsx` | 整合通知系統 |
+| `src/components/Community/FriendsList.tsx` | 顯示線上狀態指示器 |
+| `src/components/Community/UserProfileModal.tsx` | 新增刪除好友按鈕 |
+| `src/components/Community/ChatRoom.tsx` | 支援已讀標記、檔案訊息、群組顯示 |
+| `src/components/Community/MessageList.tsx` | 新增建立群組按鈕 |
+| `src/app/community/page.tsx` | 整合心跳、建立群組功能 |
+| `src/app/api/community/friends/route.ts` | 發送好友請求時建立通知 |
+| `src/app/api/community/friends/[id]/route.ts` | 接受好友時建立通知 |
+| `src/app/api/community/messages/[roomId]/route.ts` | 支援檔案訊息、已讀推送 |
+
+### 新增環境變數
+
+```env
+# Cloudinary（檔案上傳）
+CLOUDINARY_CLOUD_NAME=xxx
+CLOUDINARY_API_KEY=xxx
+CLOUDINARY_API_SECRET=xxx
+```
+
+### 新增依賴套件
+
+```bash
+npm install cloudinary
+```
+
+---
+
 ## 後續開發建議
 
-1. **通知系統**：好友請求、新訊息通知（TopBar 已預留通知圖示）
-2. **群組聊天**：支援多人聊天室
-3. **訊息已讀**：顯示訊息已讀狀態
-4. **檔案傳送**：支援圖片、檔案傳送
-5. **訊息搜尋**：搜尋聊天記錄
-6. **用戶封鎖**：封鎖特定用戶
-7. **線上狀態**：顯示用戶是否在線
-
+1. **訊息搜尋**：搜尋聊天記錄
+2. **用戶封鎖**：封鎖特定用戶
+3. **群組管理**：邀請成員、退出群組、修改群組名稱
+4. **瀏覽器推送通知**：Service Worker + Web Push API
+5. **訊息刪除/編輯**：支援刪除或編輯已發送的訊息

@@ -14,7 +14,10 @@ import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemText from '@mui/material/ListItemText';
 import CircularProgress from '@mui/material/CircularProgress';
 import Badge from '@mui/material/Badge';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import SearchIcon from '@mui/icons-material/Search';
+import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import { useUserNotifications } from '@/contexts/PusherContext';
 
 interface ChatRoom {
@@ -44,9 +47,10 @@ interface SelectedChat {
 interface MessageListProps {
   onSelectChat: (chat: SelectedChat) => void;
   selectedRoomId?: string | null;
+  onCreateGroup?: () => void;
 }
 
-export default function MessageList({ onSelectChat, selectedRoomId }: MessageListProps) {
+export default function MessageList({ onSelectChat, selectedRoomId, onCreateGroup }: MessageListProps) {
   const [chatRooms, setChatRooms] = React.useState<ChatRoom[]>([]);
   const [filteredRooms, setFilteredRooms] = React.useState<ChatRoom[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -218,9 +222,27 @@ export default function MessageList({ onSelectChat, selectedRoomId }: MessageLis
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 標題 */}
       <Box sx={{ p: 2, pb: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: '#1a1a2e', mb: 1.5 }}>
-          訊息
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1a1a2e' }}>
+            訊息
+          </Typography>
+          {onCreateGroup && (
+            <Tooltip title="建立群組">
+              <IconButton
+                onClick={onCreateGroup}
+                size="small"
+                sx={{
+                  color: '#0F4C75',
+                  '&:hover': {
+                    bgcolor: '#e3f2fd',
+                  },
+                }}
+              >
+                <GroupAddIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
 
         {/* 搜尋欄 */}
         <TextField
@@ -282,22 +304,44 @@ export default function MessageList({ onSelectChat, selectedRoomId }: MessageLis
                 >
                   <ListItemAvatar>
                     {room.type === 'group' ? (
-                      <AvatarGroup max={2} sx={{ width: 44, justifyContent: 'flex-start' }}>
-                        {room.members.slice(0, 2).map((member, idx) => (
-                          <Avatar
-                            key={member.id || idx}
-                            src={member.avatar || undefined}
-                            sx={{
-                              bgcolor: '#0F4C75',
-                              width: 32,
-                              height: 32,
-                              fontSize: '0.8rem',
-                            }}
-                          >
-                            {(member.name || member.userId)?.[0]?.toUpperCase()}
-                          </Avatar>
-                        ))}
-                      </AvatarGroup>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: 44 }}>
+                        <AvatarGroup
+                          max={2}
+                          sx={{
+                            '& .MuiAvatar-root': {
+                              width: 28,
+                              height: 28,
+                              fontSize: '0.75rem',
+                              border: '2px solid #fff',
+                            },
+                            '& .MuiAvatarGroup-avatar': {
+                              bgcolor: '#757575',
+                              fontSize: '0.65rem',
+                            },
+                          }}
+                          slotProps={{
+                            additionalAvatar: {
+                              sx: {
+                                width: 28,
+                                height: 28,
+                                bgcolor: '#9c27b0',
+                                fontSize: '0.65rem',
+                              },
+                            },
+                          }}
+                          total={room.memberCount - 1} // 不包含自己
+                        >
+                          {room.members.slice(0, 2).map((member, idx) => (
+                            <Avatar
+                              key={member.id || idx}
+                              src={member.avatar || undefined}
+                              sx={{ bgcolor: '#9c27b0' }}
+                            >
+                              {(member.name || member.userId)?.[0]?.toUpperCase()}
+                            </Avatar>
+                          ))}
+                        </AvatarGroup>
+                      </Box>
                     ) : (
                       <Badge
                         badgeContent={room.unreadCount}

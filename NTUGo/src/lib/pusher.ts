@@ -49,9 +49,18 @@ export async function triggerNewMessage(
   message: {
     id: string;
     senderId: string;
-    senderName?: string;
-    senderAvatar?: string;
+    senderName?: string | null;
+    senderAvatar?: string | null;
+    type?: 'text' | 'image' | 'file';
     content: string;
+    file?: {
+      url: string;
+      name: string;
+      size: number;
+      mimeType: string;
+      width?: number;
+      height?: number;
+    } | null;
     createdAt: Date;
   }
 ) {
@@ -116,5 +125,18 @@ export async function triggerChatUpdate(
 ) {
   const pusher = getPusher();
   await pusher.trigger(CHANNEL_NAMES.userPrivate(userId), EVENT_NAMES.CHAT_UPDATE, data);
+}
+
+// 觸發訊息已讀事件
+export async function triggerMessageRead(
+  roomId: string,
+  data: {
+    readerId: string;
+    readerName?: string;
+    readAt: string;
+  }
+) {
+  const pusher = getPusher();
+  await pusher.trigger(CHANNEL_NAMES.chatRoom(roomId), EVENT_NAMES.MESSAGE_READ, data);
 }
 
