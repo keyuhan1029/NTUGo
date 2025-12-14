@@ -17,9 +17,8 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ImageIcon from '@mui/icons-material/Image';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import DownloadIcon from '@mui/icons-material/Download';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useChatRoomMessages } from '@/contexts/PusherContext';
-import AddMemberModal from './AddMemberModal';
+import GroupMembersModal from './GroupMembersModal';
 
 interface FileInfo {
   url: string;
@@ -84,7 +83,7 @@ export default function ChatRoom({
     avatar?: string | null;
   }>>([]);
   const [currentMemberCount, setCurrentMemberCount] = React.useState(memberCount || 0);
-  const [addMemberModalOpen, setAddMemberModalOpen] = React.useState(false);
+  const [groupMembersModalOpen, setGroupMembersModalOpen] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const messageInputRef = React.useRef<HTMLTextAreaElement>(null);
@@ -549,12 +548,18 @@ export default function ChatRoom({
             sx={{ 
               fontWeight: 600, 
               color: '#1a1a2e',
-              cursor: friendId ? 'pointer' : 'default',
-              '&:hover': friendId ? {
+              cursor: type === 'group' || friendId ? 'pointer' : 'default',
+              '&:hover': (type === 'group' || friendId) ? {
                 textDecoration: 'underline',
               } : {},
             }}
-            onClick={() => friendId && onViewProfile?.(friendId)}
+            onClick={() => {
+              if (type === 'group') {
+                setGroupMembersModalOpen(true);
+              } else if (friendId) {
+                onViewProfile?.(friendId);
+              }
+            }}
           >
             {name}
             {type === 'group' && currentMemberCount > 0 && (
@@ -586,17 +591,6 @@ export default function ChatRoom({
             </Typography>
           )}
         </Box>
-        {/* 群組添加成員按鈕 */}
-        {type === 'group' && (
-          <Tooltip title="添加成員">
-            <IconButton 
-              onClick={() => setAddMemberModalOpen(true)} 
-              sx={{ color: '#0F4C75', mr: 1 }}
-            >
-              <PersonAddIcon />
-            </IconButton>
-          </Tooltip>
-        )}
         <IconButton onClick={onClose} sx={{ color: '#757575' }}>
           <CloseIcon />
         </IconButton>
@@ -882,14 +876,15 @@ export default function ChatRoom({
         </IconButton>
       </Box>
 
-      {/* 添加成員 Modal */}
+      {/* 群組成員 Modal */}
       {type === 'group' && roomId && (
-        <AddMemberModal
-          open={addMemberModalOpen}
-          onClose={() => setAddMemberModalOpen(false)}
+        <GroupMembersModal
+          open={groupMembersModalOpen}
+          onClose={() => setGroupMembersModalOpen(false)}
           roomId={roomId}
-          existingMemberIds={[...groupMembers.map(m => m.id), currentUserId || '']}
+          currentUserId={currentUserId}
           onMembersAdded={handleMembersAdded}
+          onViewProfile={onViewProfile}
         />
       )}
     </Box>
