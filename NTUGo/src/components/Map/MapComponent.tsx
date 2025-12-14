@@ -538,6 +538,23 @@ export default function MapComponent() {
     }
   }, []);
 
+  // 處理健身房點擊
+  const handleGymClick = React.useCallback(() => {
+    const gymItem = LOCATIONS.campus.find((c) => c.type === 'gym');
+    if (gymItem) {
+      setSelectedMarker(gymItem);
+      fetchGymOccupancy();
+    }
+  }, [fetchGymOccupancy]);
+
+  // 處理圖書館點擊
+  const handleLibraryClick = React.useCallback(() => {
+    const libraryItem = LOCATIONS.campus.find((c) => c.type === 'library');
+    if (libraryItem) {
+      setSelectedMarker(libraryItem);
+      fetchLibraryInfo();
+    }
+  }, [fetchLibraryInfo]);
 
   // 計算兩點間距離（公里）- 使用 Haversine 公式
   const calculateDistance = React.useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -1230,13 +1247,7 @@ export default function MapComponent() {
         viewBox={NTU_SPORTS_CENTER_VIEWBOX}
         defaultColor="#9e9e9e"
         hoverColor="#000000"
-        onClick={() => {
-          const gymItem = LOCATIONS.campus.find((c) => c.type === 'gym');
-          if (gymItem) {
-            setSelectedMarker(gymItem);
-            fetchGymOccupancy();
-          }
-        }}
+        onClick={handleGymClick}
       />
 
       {/* 總圖書館 SVG Overlay */}
@@ -1247,13 +1258,7 @@ export default function MapComponent() {
         viewBox={NTU_MAIN_LIBRARY_VIEWBOX}
         defaultColor="#9e9e9e"
         hoverColor="#000000"
-        onClick={() => {
-          const libraryItem = LOCATIONS.campus.find((c) => c.type === 'library');
-          if (libraryItem) {
-            setSelectedMarker(libraryItem);
-            fetchLibraryInfo();
-          }
-        }}
+        onClick={handleLibraryClick}
       />
 
       {/* 其他 Campus Pins（非 gym/library）使用 MarkerF */}

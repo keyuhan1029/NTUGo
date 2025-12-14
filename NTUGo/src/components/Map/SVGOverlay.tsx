@@ -32,6 +32,12 @@ export default function SVGOverlay({
 }: SVGOverlayProps) {
   const overlayRef = React.useRef<google.maps.OverlayView | null>(null);
 
+  // 使用 ref 來存儲最新的 onClick，避免因為 onClick 變化導致 overlay 重建
+  const onClickRef = React.useRef(onClick);
+  React.useEffect(() => {
+    onClickRef.current = onClick;
+  }, [onClick]);
+
   React.useEffect(() => {
     if (!map) return;
 
@@ -42,6 +48,7 @@ export default function SVGOverlay({
       private svgElement: SVGSVGElement | null = null;
       private pathElement: SVGPathElement | null = null;
       private isHovered = false;
+      private mouseInside = false;
 
       constructor(bounds: google.maps.LatLngBounds) {
         super();
@@ -70,8 +77,10 @@ export default function SVGOverlay({
         this.pathElement.setAttribute('stroke', defaultColor);
         this.pathElement.setAttribute('stroke-width', '4');
         this.pathElement.setAttribute('stroke-linejoin', 'round');
-        // 加入 CSS transition 讓顏色變化更平滑
-        this.pathElement.style.transition = 'fill 0.15s ease, stroke 0.15s ease';
+        // 加入 CSS transition 讓顏色變化更平滑，使用更長的時間減少閃爍
+        this.pathElement.style.transition = 'fill 0.2s ease, stroke 0.2s ease';
+        // 防止過渡期間的閃爍
+        this.pathElement.style.willChange = 'fill, stroke';
 
         this.svgElement.appendChild(this.pathElement);
         this.div.appendChild(this.svgElement);
@@ -115,17 +124,19 @@ export default function SVGOverlay({
       }
 
       private handleMouseEnter = () => {
+        this.mouseInside = true;
         this.isHovered = true;
         this.updateColor();
       };
 
       private handleMouseLeave = () => {
+        this.mouseInside = false;
         this.isHovered = false;
         this.updateColor();
       };
 
       private handleClick = () => {
-        onClick?.();
+        onClickRef.current?.();
       };
 
       private updateColor() {
@@ -149,7 +160,7 @@ export default function SVGOverlay({
       overlay.setMap(null);
       overlayRef.current = null;
     };
-  }, [map, bounds.north, bounds.south, bounds.east, bounds.west, svgPath, viewBox, defaultColor, hoverColor, onClick]);
+  }, [map, bounds.north, bounds.south, bounds.east, bounds.west, svgPath, viewBox, defaultColor, hoverColor]);
 
   return null;
 }
