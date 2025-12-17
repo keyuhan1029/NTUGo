@@ -43,6 +43,7 @@ export const EVENT_NAMES = {
   CHAT_UPDATE: 'chat-update', // 聊天室列表更新（新訊息預覽）
   SCHEDULE_SHARE_REQUEST: 'schedule-share-request',
   SCHEDULE_SHARE_ACCEPTED: 'schedule-share-accepted',
+  BUS_ARRIVAL: 'bus-arrival', // 公车到站提醒
 };
 
 // 觸發聊天室訊息事件
@@ -164,5 +165,20 @@ export async function triggerScheduleShareAccepted(
 ) {
   const pusher = getPusher();
   await pusher.trigger(CHANNEL_NAMES.userPrivate(userId), EVENT_NAMES.SCHEDULE_SHARE_ACCEPTED, data);
+}
+
+// 觸發公車到站提醒通知
+export async function triggerBusArrival(
+  userId: string,
+  data: {
+    reminderId: string;
+    stopName: string;
+    routeName: string;
+    direction: number;
+    estimatedMinutes: number;
+  }
+) {
+  const pusher = getPusher();
+  await pusher.trigger(CHANNEL_NAMES.userPrivate(userId), EVENT_NAMES.BUS_ARRIVAL, data);
 }
 

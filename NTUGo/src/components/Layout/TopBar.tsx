@@ -13,10 +13,11 @@ import Tooltip from '@mui/material/Tooltip';
 import ProfileModal from '@/components/Auth/ProfileModal';
 import EditProfileModal from '@/components/Auth/EditProfileModal';
 import NotificationMenu from '@/components/Layout/NotificationMenu';
+import { useUserNotifications } from '@/contexts/PusherContext';
 
 interface NotificationItem {
   id: string;
-  type: 'friend_request' | 'friend_accepted' | 'new_message' | 'group_invite' | 'schedule_share';
+  type: 'friend_request' | 'friend_accepted' | 'new_message' | 'group_invite' | 'schedule_share' | 'bus_arrival';
   title: string;
   content: string;
   relatedId?: string | null;
@@ -102,6 +103,56 @@ export default function TopBar() {
     return () => clearInterval(interval);
   }, []);
 
+  // 加载通知列表
+  const loadNotifications = React.useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      setNotificationsLoading(true);
+      const response = await fetch('/api/notifications?limit=20', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('載入通知失敗:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  // 刷新通知的回调函数（稳定引用）
+  const handleBusArrival = React.useCallback(async () => {
+    console.log('[TopBar] 收到公车到站通知，刷新通知列表');
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      // 刷新未读数量
+      const countResponse = await fetch('/api/notifications?unreadOnly=true&limit=1', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (countResponse.ok) {
+        const countData = await countResponse.json();
+        setUnreadCount(countData.unreadCount || 0);
+      }
+
+      // 刷新通知列表（无论菜单是否打开）
+      await loadNotifications();
+    } catch (error) {
+      console.error('刷新通知失敗:', error);
+    }
+  }, [loadNotifications]);
+
+  // 监听 Pusher 实时通知
+  useUserNotifications(userId, {
+    onBusArrival: handleBusArrival,
+  });
+
   const handleProfileClick = React.useCallback(() => {
     setProfileModalOpen(true);
   }, []);
@@ -178,27 +229,6 @@ export default function TopBar() {
     setNotificationAnchor(null);
   };
 
-  const loadNotifications = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      setNotificationsLoading(true);
-      const response = await fetch('/api/notifications?limit=20', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (error) {
-      console.error('載入通知失敗:', error);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
   const handleMarkAsRead = async (notificationId: string) => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -257,6 +287,9 @@ export default function TopBar() {
       router.push('/community');
     } else if (notification.type === 'schedule_share') {
       router.push('/community');
+    } else if (notification.type === 'bus_arrival') {
+      // 公车到站通知，跳转到地图页面
+      router.push('/');
     }
   };
 

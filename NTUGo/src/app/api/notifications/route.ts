@@ -52,10 +52,10 @@ export async function GET(request: Request) {
         id: notif._id instanceof ObjectId ? notif._id.toString() : String(notif._id),
         type: notif.type,
         title: notif.title,
-        content: notif.content,
+        content: notif.content || notif.message || '', // 支持 content 和 message 字段
         relatedId: notif.relatedId || null,
         isRead: notif.isRead,
-        createdAt: notif.createdAt,
+        createdAt: notif.createdAt instanceof Date ? notif.createdAt.toISOString() : notif.createdAt,
         sender: sender ? {
           id: sender._id instanceof ObjectId ? sender._id.toString() : String(sender._id),
           name: sender.name || null,

@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { getDatabase } from '../mongodb';
 
-export type NotificationType = 'friend_request' | 'friend_accepted' | 'new_message' | 'group_invite' | 'schedule_share';
+export type NotificationType = 'friend_request' | 'friend_accepted' | 'new_message' | 'group_invite' | 'schedule_share' | 'bus_arrival';
 
 export interface Notification {
   _id?: string | ObjectId;

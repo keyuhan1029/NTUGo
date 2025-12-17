@@ -244,9 +244,16 @@ export function useUserNotifications(
     onFriendRequest?: (data: any) => void;
     onFriendAccepted?: (data: any) => void;
     onChatUpdate?: (data: any) => void;
+    onBusArrival?: (data: any) => void;
   }
 ) {
   const { subscribeToChannel, unsubscribeFromChannel } = usePusher();
+  
+  // 使用 useRef 存储最新的回调函数，避免依赖数组变化导致重新绑定
+  const callbacksRef = useRef(callbacks);
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  }, [callbacks]);
 
   useEffect(() => {
     if (!userId) return;
@@ -260,15 +267,21 @@ export function useUserNotifications(
         console.error(`頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
       });
 
-      if (callbacks?.onFriendRequest) {
-        channel.bind('friend-request', callbacks.onFriendRequest);
-      }
-      if (callbacks?.onFriendAccepted) {
-        channel.bind('friend-accepted', callbacks.onFriendAccepted);
-      }
-      if (callbacks?.onChatUpdate) {
-        channel.bind('chat-update', callbacks.onChatUpdate);
-      }
+      // 始终绑定事件，使用包装函数来调用最新的回调（如果存在）
+      // 这样即使回调函数在后续渲染中被添加，事件也能正常工作
+      channel.bind('friend-request', (data: any) => {
+        callbacksRef.current?.onFriendRequest?.(data);
+      });
+      channel.bind('friend-accepted', (data: any) => {
+        callbacksRef.current?.onFriendAccepted?.(data);
+      });
+      channel.bind('chat-update', (data: any) => {
+        callbacksRef.current?.onChatUpdate?.(data);
+      });
+      channel.bind('bus-arrival', (data: any) => {
+        console.log('[PusherContext] 收到 bus-arrival 事件:', data);
+        callbacksRef.current?.onBusArrival?.(data);
+      });
     }
 
     return () => {
@@ -277,6 +290,6 @@ export function useUserNotifications(
       }
       unsubscribeFromChannel(channelName);
     };
-  }, [userId, subscribeToChannel, unsubscribeFromChannel, callbacks]);
+  }, [userId, subscribeToChannel, unsubscribeFromChannel]);
 }
 

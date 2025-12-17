@@ -817,7 +817,8 @@ export default function MapComponent() {
     busStopRequestTimeoutRef.current = setTimeout(async () => {
       try {
         setBusRealTimeLoading(true);
-        // 使用站名查詢，這樣可以獲取所有同名站點的路線（類似台北等公車）
+        // 使用站名查詢，但使用嚴格匹配（完全相同的站名）
+        // 這樣可以獲取所有同名站點的路線，但不會誤匹配部分相同的站名
         const realTimeInfo = await fetchBusRealTimeInfo(stopName, true);
         
         // 確保請求的站點仍然是當前選中的站點（避免異步競態條件）
