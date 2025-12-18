@@ -12,7 +12,7 @@ import { ObjectId } from 'mongodb';
  * {
  *   "crons": [{
  *     "path": "/api/cron/bus-reminders",
- *     "schedule": "*/1 * * * *"
+ *     "schedule": "0 * * * * *"
  *   }]
  * }
  */
@@ -32,8 +32,6 @@ export async function GET(request: Request) {
   try {
     // 获取需要发送通知的提醒
     const dueReminders = await BusReminderModel.findDueReminders();
-
-    console.log(`[${new Date().toISOString()}] 检查提醒: 找到 ${dueReminders.length} 个到期的提醒`);
 
     if (dueReminders.length === 0) {
       return NextResponse.json({
@@ -62,18 +60,14 @@ export async function GET(request: Request) {
         
         // 如果提醒时间还没到，跳过
         if (!reminderTimePassed) {
-          console.log(`提醒 ${reminder._id} 时间未到，跳过`);
           continue;
         }
         
         // 如果已经到站了，标记为已通知并停用
         if (!notYetArrived) {
-          console.log(`提醒 ${reminder._id} 已过期（公车已到站），标记为已通知`);
           await BusReminderModel.markAsNotified(reminder._id!);
           continue;
         }
-        
-        console.log(`发送提醒通知: ${reminder.routeName} 在 ${reminder.stopName}, 预计 ${estimatedMinutes} 分钟后到达`);
 
         // 创建通知记录
         const notificationMessage = `${reminder.routeName}${reminder.direction === 0 ? '(去程)' : '(返程)'} 即將在 ${reminder.stopName} 到站，預計 ${estimatedMinutes} 分鐘後到達`;
@@ -100,8 +94,9 @@ export async function GET(request: Request) {
             direction: reminder.direction,
             estimatedMinutes: estimatedMinutes,
           });
-        } catch (pusherError) {
-          console.warn('Pusher 推送失敗:', pusherError);
+        } catch (pusherError: any) {
+          console.error(`Pusher 推送失敗: userId=${userId}`, pusherError?.message || pusherError);
+          // Pusher 错误不影响通知记录
         }
 
         // 标记为已通知

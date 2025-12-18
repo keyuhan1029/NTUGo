@@ -107,19 +107,21 @@ const RouteCard = React.memo(({
         </Box>
         {canSetReminder && (
           <Tooltip title={hasReminder ? '取消提醒' : '設定提醒（到站前5分鐘通知）'}>
-            <IconButton
-              size="small"
-              onClick={onToggleReminder}
-              disabled={isReminderLoading}
-              sx={{
-                color: hasReminder ? '#ff9800' : 'text.secondary',
-                '&:hover': {
-                  color: hasReminder ? '#f57c00' : '#1976d2',
-                },
-              }}
-            >
-              {hasReminder ? <NotificationsActiveIcon fontSize="small" /> : <NotificationsIcon fontSize="small" />}
-            </IconButton>
+            <span>
+              <IconButton
+                size="small"
+                onClick={onToggleReminder}
+                disabled={isReminderLoading}
+                sx={{
+                  color: hasReminder ? '#ff9800' : 'text.secondary',
+                  '&:hover': {
+                    color: hasReminder ? '#f57c00' : '#1976d2',
+                  },
+                }}
+              >
+                {hasReminder ? <NotificationsActiveIcon fontSize="small" /> : <NotificationsIcon fontSize="small" />}
+              </IconButton>
+            </span>
           </Tooltip>
         )}
       </Box>
@@ -187,8 +189,8 @@ function BusInfoContent({
     }
   }, [busRealTimeInfo.length, loadReminders]);
 
-  // 加载路线信息（起点站和终点站）
-  const loadRouteInfo = React.useCallback(async (routeUID: string, direction: number) => {
+  // 加载路线信息（起点站和终点站）- 带重试和速率限制
+  const loadRouteInfo = React.useCallback(async (routeUID: string, direction: number, retryCount = 0) => {
     const routeKey = `${routeUID}_${direction}`;
 
     // 如果已经加载过，跳过
@@ -201,6 +203,23 @@ function BusInfoContent({
 
     try {
       const response = await fetch(`/api/tdx/bus-route?routeUID=${encodeURIComponent(routeUID)}&direction=${direction}`);
+      
+      // 处理 429 错误（Too Many Requests）
+      if (response.status === 429) {
+        // 如果重试次数少于 3 次，等待后重试
+        if (retryCount < 3) {
+          const waitTime = (retryCount + 1) * 2000; // 2秒、4秒、6秒
+          // 請求被限流，等待後重試
+          loadedRoutesRef.current.delete(routeKey); // 允许重试
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return loadRouteInfo(routeUID, direction, retryCount + 1);
+        } else {
+          console.error(`路線資訊請求失敗: 超過重試次數 (${routeUID})`);
+          loadedRoutesRef.current.delete(routeKey);
+          return;
+        }
+      }
+      
       if (response.ok) {
         const data = await response.json();
         if (data.destinationStopName) {
@@ -214,6 +233,9 @@ function BusInfoContent({
             return newMap;
           });
         }
+      } else {
+        console.error(`載入路線資訊失敗: ${response.status} ${response.statusText}`);
+        loadedRoutesRef.current.delete(routeKey);
       }
     } catch (error) {
       console.error('載入路線資訊失敗:', error);
@@ -222,19 +244,30 @@ function BusInfoContent({
     }
   }, []);
 
-  // 当公车信息变化时，加载所有路线的起点站和终点站信息
+  // 当公车信息变化时，加载所有路线的起点站和终点站信息（带速率限制）
   React.useEffect(() => {
     if (busRealTimeInfo.length === 0) return;
 
     // 获取所有唯一的路线
-    const uniqueRoutes = new Set<string>();
+    const uniqueRoutes: Array<{ routeUID: string; direction: number }> = [];
+    const routeKeys = new Set<string>();
+    
     for (const info of busRealTimeInfo) {
       const routeKey = `${info.RouteUID}_${info.Direction}`;
-      // 如果还没有加载过，才加载
-      if (!uniqueRoutes.has(routeKey) && !loadedRoutesRef.current.has(routeKey)) {
-        uniqueRoutes.add(routeKey);
-        loadRouteInfo(info.RouteUID, info.Direction);
+      // 如果还没有加载过，才加入队列
+      if (!routeKeys.has(routeKey) && !loadedRoutesRef.current.has(routeKey)) {
+        routeKeys.add(routeKey);
+        uniqueRoutes.push({ routeUID: info.RouteUID, direction: info.Direction });
       }
+    }
+
+    // 逐個加載路線資訊，避免並發請求過多（每 300ms 一個）
+    if (uniqueRoutes.length > 0) {
+      uniqueRoutes.forEach((route, index) => {
+        setTimeout(() => {
+          loadRouteInfo(route.routeUID, route.direction);
+        }, index * 300); // 每個請求間隔 300ms
+      });
     }
   }, [busRealTimeInfo, loadRouteInfo]);
 

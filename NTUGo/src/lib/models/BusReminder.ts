@@ -77,15 +77,30 @@ export class BusReminderModel {
     const db = await getDatabase();
     const now = new Date();
 
-    const reminders = await db.collection<BusReminder>(this.collectionName)
+    // 查詢所有激活且未通知的提醒
+    const allReminders = await db.collection<BusReminder>(this.collectionName)
       .find({
         isActive: true,
         isNotified: false,
-        reminderTime: { $lte: now },
       })
       .toArray();
 
-    return reminders;
+    // 手動過濾：確保 reminderTime 已到，且 targetArrivalTime 未到
+    const dueReminders = allReminders.filter((reminder) => {
+      const reminderTime = reminder.reminderTime instanceof Date 
+        ? reminder.reminderTime 
+        : new Date(reminder.reminderTime);
+      const targetArrivalTime = reminder.targetArrivalTime instanceof Date 
+        ? reminder.targetArrivalTime 
+        : new Date(reminder.targetArrivalTime);
+      
+      const reminderTimePassed = now.getTime() >= reminderTime.getTime();
+      const notYetArrived = now.getTime() < targetArrivalTime.getTime();
+      
+      return reminderTimePassed && notYetArrived;
+    });
+
+    return dueReminders;
   }
 
   // 标记提醒为已通知

@@ -126,8 +126,7 @@ export default function TopBar() {
   }, []);
 
   // 刷新通知的回调函数（稳定引用）
-  const handleBusArrival = React.useCallback(async () => {
-    console.log('[TopBar] 收到公车到站通知，刷新通知列表');
+  const handleBusArrival = React.useCallback(async (data?: any) => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -141,7 +140,7 @@ export default function TopBar() {
         setUnreadCount(countData.unreadCount || 0);
       }
 
-      // 刷新通知列表（无论菜单是否打开）
+      // 刷新通知列表
       await loadNotifications();
     } catch (error) {
       console.error('刷新通知失敗:', error);
@@ -153,6 +152,51 @@ export default function TopBar() {
     onBusArrival: handleBusArrival,
   });
 
+
+  // 定期檢查提醒（用於本地開發環境，因為 cron job 不會自動執行）
+  // 每 30 秒檢查一次提醒，觸發通知
+  React.useEffect(() => {
+    if (!userId) return;
+
+    const checkReminders = async () => {
+      try {
+        // 調用 cron job API 來檢查提醒
+        const response = await fetch('/api/cron/bus-reminders', {
+          method: 'GET',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.count > 0) {
+            // 如果有提醒被處理，刷新通知列表
+            await loadNotifications();
+            // 刷新未讀數量
+            const token = localStorage.getItem('token');
+            if (token) {
+              const countResponse = await fetch('/api/notifications?unreadOnly=true&limit=1', {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (countResponse.ok) {
+                const countData = await countResponse.json();
+                setUnreadCount(countData.unreadCount || 0);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('定期檢查提醒失敗:', error);
+      }
+    };
+
+    // 立即執行一次
+    checkReminders();
+    
+    // 每 30 秒執行一次
+    const interval = setInterval(checkReminders, 30000);
+    
+    return () => clearInterval(interval);
+  }, [userId, loadNotifications]);
+
   const handleProfileClick = React.useCallback(() => {
     setProfileModalOpen(true);
   }, []);
@@ -163,26 +207,21 @@ export default function TopBar() {
 
   const handleCalendarClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Calendar clicked, current path:', pathname);
     // 第二次點擊回到主頁：在 /calendar 時再點一次 icon 就導回 /
     if (pathname === '/calendar') {
       console.log('Navigating to /');
       router.push('/');
     } else {
-      console.log('Navigating to /calendar');
       router.push('/calendar');
     }
   };
 
   const handleScheduleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('Schedule clicked, current path:', pathname);
     // 課表功能
     if (pathname === '/schedule') {
-      console.log('Navigating to /');
       router.push('/');
     } else {
-      console.log('Navigating to /schedule');
       router.push('/schedule');
     }
   };

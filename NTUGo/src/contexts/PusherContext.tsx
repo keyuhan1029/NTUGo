@@ -262,9 +262,14 @@ export function useUserNotifications(
     const channel = subscribeToChannel(channelName);
 
     if (channel) {
+      // 處理訂閱成功
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log(`[PusherContext] 頻道 ${channelName} 訂閱成功`);
+      });
+
       // 處理訂閱錯誤
       channel.bind('pusher:subscription_error', (error: any) => {
-        console.error(`頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
+        console.error(`[PusherContext] 頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
       });
 
       // 始终绑定事件，使用包装函数来调用最新的回调（如果存在）
@@ -279,9 +284,16 @@ export function useUserNotifications(
         callbacksRef.current?.onChatUpdate?.(data);
       });
       channel.bind('bus-arrival', (data: any) => {
-        console.log('[PusherContext] 收到 bus-arrival 事件:', data);
-        callbacksRef.current?.onBusArrival?.(data);
+        console.log(`[PusherContext] 收到 bus-arrival 事件: userId=${userId}`, data);
+        if (callbacksRef.current?.onBusArrival) {
+          console.log(`[PusherContext] 調用 onBusArrival 回調`);
+          callbacksRef.current.onBusArrival(data);
+        } else {
+          console.warn(`[PusherContext] onBusArrival 回調不存在`);
+        }
       });
+    } else {
+      console.warn(`[PusherContext] 無法訂閱頻道 ${channelName}: channel 為 null`);
     }
 
     return () => {

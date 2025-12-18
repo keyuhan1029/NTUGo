@@ -153,22 +153,24 @@ function AlumniWeekTable({ announcements }: { announcements: Array<{ _id: string
           
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <IconButton
-                onClick={() => {
-                  if (canGoPrev) {
-                    setSelectedSemester(semesters[currentIndex - 1]);
-                  }
-                }}
-                disabled={!canGoPrev}
-                sx={{
-                  color: canGoPrev ? '#5c5c5c' : '#ddd',
-                  '&:hover': {
-                    backgroundColor: canGoPrev ? 'rgba(92, 92, 92, 0.08)' : 'transparent',
-                  },
-                }}
-              >
-                <ArrowBackIosIcon />
-              </IconButton>
+              <span>
+                <IconButton
+                  onClick={() => {
+                    if (canGoPrev) {
+                      setSelectedSemester(semesters[currentIndex - 1]);
+                    }
+                  }}
+                  disabled={!canGoPrev}
+                  sx={{
+                    color: canGoPrev ? '#5c5c5c' : '#ddd',
+                    '&:hover': {
+                      backgroundColor: canGoPrev ? 'rgba(92, 92, 92, 0.08)' : 'transparent',
+                    },
+                  }}
+                >
+                  <ArrowBackIosIcon />
+                </IconButton>
+              </span>
               
               <Typography
                 variant="h6"
@@ -182,22 +184,24 @@ function AlumniWeekTable({ announcements }: { announcements: Array<{ _id: string
                 {selectedSemester}
               </Typography>
               
-              <IconButton
-                onClick={() => {
-                  if (canGoNext) {
-                    setSelectedSemester(semesters[currentIndex + 1]);
-                  }
-                }}
-                disabled={!canGoNext}
-                sx={{
-                  color: canGoNext ? '#5c5c5c' : '#ddd',
-                  '&:hover': {
-                    backgroundColor: canGoNext ? 'rgba(92, 92, 92, 0.08)' : 'transparent',
-                  },
-                }}
-              >
-                <ArrowForwardIosIcon />
-              </IconButton>
+              <span>
+                <IconButton
+                  onClick={() => {
+                    if (canGoNext) {
+                      setSelectedSemester(semesters[currentIndex + 1]);
+                    }
+                  }}
+                  disabled={!canGoNext}
+                  sx={{
+                    color: canGoNext ? '#5c5c5c' : '#ddd',
+                    '&:hover': {
+                      backgroundColor: canGoNext ? 'rgba(92, 92, 92, 0.08)' : 'transparent',
+                    },
+                  }}
+                >
+                  <ArrowForwardIosIcon />
+                </IconButton>
+              </span>
             </Box>
           );
         })()}

@@ -178,7 +178,19 @@ export async function triggerBusArrival(
     estimatedMinutes: number;
   }
 ) {
-  const pusher = getPusher();
-  await pusher.trigger(CHANNEL_NAMES.userPrivate(userId), EVENT_NAMES.BUS_ARRIVAL, data);
+  try {
+    const pusher = getPusher();
+    const channelName = CHANNEL_NAMES.userPrivate(userId);
+    const eventName = EVENT_NAMES.BUS_ARRIVAL;
+    
+    console.log(`[Pusher] 發送公車到站通知: userId=${userId}, channel=${channelName}, event=${eventName}`, data);
+    
+    await pusher.trigger(channelName, eventName, data);
+    
+    console.log(`[Pusher] 公車到站通知發送成功: userId=${userId}`);
+  } catch (error: any) {
+    console.error(`[Pusher] 公車到站通知發送失敗: userId=${userId}`, error);
+    throw error;
+  }
 }
 
