@@ -125,8 +125,13 @@ export function PusherProvider({ children }: PusherProviderProps) {
       }
 
       // 檢查連接狀態
-      errorDetails.state = pusherInstance.connection.state;
-      errorDetails.socketId = pusherInstance.connection.socket_id || '未連接';
+      if (pusherInstance.connection) {
+        errorDetails.state = pusherInstance.connection.state;
+        errorDetails.socketId = pusherInstance.connection.socket_id || '未連接';
+      } else {
+        errorDetails.state = '未初始化';
+        errorDetails.socketId = '未連接';
+      }
 
       console.error('Pusher 連線錯誤:', errorDetails);
       
