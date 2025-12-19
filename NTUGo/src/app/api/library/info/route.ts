@@ -119,40 +119,40 @@ export async function GET() {
       }
     }
 
-    // 檢查是否開館中 - 只從 HTML 中提取，不進行時間判斷
+    // 檢查是否開館中 - 優先根據當前時間判斷
     if (openingHours.status === '未知') {
-      const bodyText = $home('body').text();
-      const openTimeText = $home('#open_time').text().trim();
-      
-      // 如果 #open_time 顯示「閉館」
-      if (openTimeText === '閉館') {
-        openingHours.status = '閉館';
-      } 
-      // 如果有開館時間，檢查頁面文字中的狀態
-      else if (openingHours.hours) {
-        if (bodyText.includes('開館中') || bodyText.includes('開放中')) {
+      // 如果有開館時間，優先根據當前時間判斷
+      if (openingHours.hours) {
+        const now = new Date();
+        const taiwanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+        const currentHour = taiwanTime.getHours();
+        const currentMinute = taiwanTime.getMinutes();
+        const currentTime = currentHour * 60 + currentMinute;
+        
+        const [openTime, closeTime] = openingHours.hours.split('-');
+        const [openHour, openMin] = openTime.split(':').map(Number);
+        const [closeHour, closeMin] = closeTime.split(':').map(Number);
+        const openTimeMinutes = openHour * 60 + openMin;
+        const closeTimeMinutes = closeHour * 60 + closeMin;
+        
+        // 根據當前時間判斷是否在開館時間內
+        if (currentTime >= openTimeMinutes && currentTime < closeTimeMinutes) {
+          openingHours.status = '開館中';
+        } else {
+          openingHours.status = '閉館';
+        }
+      } else {
+        // 如果沒有開館時間，才使用頁面文字判斷
+        const bodyText = $home('body').text();
+        const openTimeText = $home('#open_time').text().trim();
+        
+        // 如果 #open_time 顯示「閉館」
+        if (openTimeText === '閉館') {
+          openingHours.status = '閉館';
+        } else if (bodyText.includes('開館中') || bodyText.includes('開放中')) {
           openingHours.status = '開館中';
         } else if (bodyText.includes('閉館') || bodyText.includes('休館')) {
           openingHours.status = '閉館';
-        } else {
-          // 如果沒有明確標示，根據當前時間和開館時間判斷
-          const now = new Date();
-          const taiwanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
-          const currentHour = taiwanTime.getHours();
-          const currentMinute = taiwanTime.getMinutes();
-          const currentTime = currentHour * 60 + currentMinute;
-          
-          const [openTime, closeTime] = openingHours.hours.split('-');
-          const [openHour, openMin] = openTime.split(':').map(Number);
-          const [closeHour, closeMin] = closeTime.split(':').map(Number);
-          const openTimeMinutes = openHour * 60 + openMin;
-          const closeTimeMinutes = closeHour * 60 + closeMin;
-          
-          if (currentTime >= openTimeMinutes && currentTime < closeTimeMinutes) {
-            openingHours.status = '開館中';
-          } else {
-            openingHours.status = '閉館';
-          }
         }
       }
     }
