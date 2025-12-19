@@ -73,7 +73,8 @@ export function PusherProvider({ children }: PusherProviderProps) {
 
     pusherInstance.connection.bind('unavailable', () => {
       setIsConnected(false);
-      console.error('Pusher 服務不可用');
+      // Pusher 服務不可用，這是正常情況（例如網絡問題），不需要記錄為錯誤
+      console.warn('Pusher 服務不可用');
     });
 
     pusherInstance.connection.bind('connecting', () => {

@@ -89,6 +89,7 @@ export default function ChatRoom({
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const messageInputRef = React.useRef<HTMLTextAreaElement>(null);
+  const aiChatTimerRef = React.useRef<NodeJS.Timeout | null>(null); // AI 聊天清除定时器
 
   // 當 initialRoomId prop 變化時，同步更新 roomId 狀態並清除訊息
   React.useEffect(() => {
@@ -182,33 +183,29 @@ export default function ChatRoom({
 
   React.useEffect(() => {
     if (type === 'ai') {
-      // AI 客服模式：添加预设欢迎消息
-      const welcomeMessage: Message = {
-        id: 'welcome-ai-' + Date.now(),
-        senderId: 'ntu-ai-support',
-        sender: {
-          id: 'ntu-ai-support',
-          name: 'NTU AI 客服',
-          avatar: null,
-        },
-        type: 'text',
-        content: currentUserName 
-          ? `您好，${currentUserName}！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊`
-          : '您好！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊',
-        file: null,
-        createdAt: new Date().toISOString(),
-        isOwn: false,
-        readBy: [],
+      // AI 客服模式：创建或获取 AI 聊天室（保留历史记录）
+      createOrGetAIChatRoom();
+      
+      // 设置 5 分钟后自动清除消息（只在 roomId 存在时设置）
+      if (aiChatTimerRef.current) {
+        clearTimeout(aiChatTimerRef.current);
+      }
+
+      return () => {
+        if (aiChatTimerRef.current) {
+          clearTimeout(aiChatTimerRef.current);
+        }
       };
-      setMessages([welcomeMessage]);
-      setLoading(false);
-    } else if (roomId) {
+    }
+    
+    // 非 AI 模式才获取消息
+    if (roomId && roomId !== 'ntu-ai-support') {
       fetchMessages();
     } else if (friendId) {
       // 如果沒有 roomId 但有 friendId，建立或取得聊天室
       createOrGetRoom();
     }
-  }, [roomId, friendId, type, currentUserName]);
+  }, [roomId, friendId, type, currentUserName, currentUserId]);
 
   React.useEffect(() => {
     if (friendId) {
@@ -305,8 +302,91 @@ export default function ChatRoom({
     }
   };
 
+  // 创建或获取 AI 客服聊天室（保留历史记录，只在5分钟后清除）
+  const createOrGetAIChatRoom = async () => {
+    if (!currentUserId) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      // 调用 API 创建或获取 AI 聊天室（不清除消息）
+      const response = await fetch('/api/community/chatrooms/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('建立 AI 聊天室失敗');
+      }
+
+      const data = await response.json();
+      const aiRoomId = data.chatRoom.id;
+      setRoomId(aiRoomId);
+      onRoomCreated?.(aiRoomId);
+
+      // 加载历史消息（保留对话记录）
+      await fetchMessages();
+
+      // 设置 5 分钟后自动清除消息
+      if (aiChatTimerRef.current) {
+        clearTimeout(aiChatTimerRef.current);
+      }
+      
+      aiChatTimerRef.current = setTimeout(async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (token && aiRoomId) {
+            await fetch('/api/community/chatrooms/ai/clear', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            console.log('AI 聊天記錄已自動清除（5分鐘後）');
+            // 清除后，如果还在 AI 聊天室，显示欢迎消息
+            if (type === 'ai' && roomId === aiRoomId) {
+              const welcomeMessage: Message = {
+                id: 'welcome-ai-' + Date.now(),
+                senderId: 'ntu-ai-support',
+                sender: {
+                  id: 'ntu-ai-support',
+                  name: 'NTU AI 客服',
+                  avatar: null,
+                },
+                type: 'text',
+                content: currentUserName 
+                  ? `您好，${currentUserName}！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊`
+                  : '您好！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊',
+                file: null,
+                createdAt: new Date().toISOString(),
+                isOwn: false,
+                readBy: [],
+              };
+              setMessages([welcomeMessage]);
+            }
+          }
+        } catch (error) {
+          console.error('自動清除 AI 聊天記錄錯誤:', error);
+        }
+      }, 5 * 60 * 1000); // 5 分钟
+    } catch (error) {
+      console.error('建立 AI 聊天室錯誤:', error);
+      setLoading(false);
+    }
+  };
+
   const fetchMessages = async () => {
     if (!roomId) return;
+
+    // AI 模式也需要获取消息（从数据库加载历史）
+    if (type === 'ai' && roomId === 'ntu-ai-support') {
+      return; // 如果还是旧的 roomId，不获取
+    }
 
     try {
       setLoading(true);
@@ -319,13 +399,43 @@ export default function ChatRoom({
       });
 
       if (!response.ok) {
+        // 如果是 404，可能是聊天室不存在，设置空消息列表
+        if (response.status === 404) {
+          setMessages([]);
+          return;
+        }
         throw new Error('取得訊息失敗');
       }
 
       const data = await response.json();
-      setMessages(data.messages);
+      const loadedMessages = data.messages || [];
+      
+      // 如果是 AI 模式且没有消息，添加欢迎消息
+      if (type === 'ai' && loadedMessages.length === 0) {
+        const welcomeMessage: Message = {
+          id: 'welcome-ai-' + Date.now(),
+          senderId: 'ntu-ai-support',
+          sender: {
+            id: 'ntu-ai-support',
+            name: 'NTU AI 客服',
+            avatar: null,
+          },
+          type: 'text',
+          content: currentUserName 
+            ? `您好，${currentUserName}！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊`
+            : '您好！歡迎使用 NTU AI 客服，我是您的智能助手，隨時為您提供協助。有什麼問題都可以問我哦！😊',
+          file: null,
+          createdAt: new Date().toISOString(),
+          isOwn: false,
+          readBy: [],
+        };
+        setMessages([welcomeMessage]);
+      } else {
+        setMessages(loadedMessages);
+      }
     } catch (error) {
       console.error('取得訊息錯誤:', error);
+      // 错误时不设置空消息，保持当前状态
     } finally {
       setLoading(false);
     }
@@ -361,11 +471,147 @@ export default function ChatRoom({
   const handleSend = async () => {
     if (!newMessage.trim() || sending) return;
     
-    // AI 客服模式：暂时禁用发送，稍后接入 API
+    // AI 客服模式：调用 OpenAI API 并保存消息
     if (type === 'ai') {
-      console.log('AI 客服消息发送功能待接入 OpenAI API:', newMessage.trim());
-      // TODO: 接入 OpenAI API
+      if (!roomId || !currentUserId) {
+        console.error('AI 聊天室未初始化');
+        return;
+      }
+
+      const messageContent = newMessage.trim();
       setNewMessage('');
+      setSending(true);
+
+      try {
+        const token = localStorage.getItem('token');
+
+        // 先保存用户消息到数据库
+        const userMessageResponse = await fetch(`/api/community/messages/${roomId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: messageContent }),
+        });
+
+        if (!userMessageResponse.ok) {
+          throw new Error('保存消息失敗');
+        }
+
+        const userMessageData = await userMessageResponse.json();
+        const userMessage = userMessageData.message;
+
+        // 立即显示用户消息
+        setMessages((prev) => [...prev, {
+          id: userMessage.id,
+          senderId: userMessage.senderId,
+          sender: userMessage.sender,
+          type: userMessage.type,
+          content: userMessage.content,
+          file: userMessage.file,
+          createdAt: userMessage.createdAt,
+          isOwn: true,
+          readBy: userMessage.readBy || [],
+        }]);
+
+        // 构建对话历史（从数据库加载的消息）
+        const recentMessages = messages.slice(-10).map(msg => ({
+          role: msg.isOwn ? 'user' : 'assistant',
+          content: msg.content,
+        }));
+
+        // 调用 OpenAI API
+        const aiResponse = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            message: messageContent,
+            conversationHistory: recentMessages,
+          }),
+        });
+
+        if (!aiResponse.ok) {
+          const errorData = await aiResponse.json();
+          throw new Error(errorData.message || 'AI 服務錯誤');
+        }
+
+        const aiData = await aiResponse.json();
+
+        // 保存 AI 回复到数据库
+        const aiMessageResponse = await fetch(`/api/community/messages/${roomId}/ai`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: aiData.response }),
+        });
+
+        if (aiMessageResponse.ok) {
+          const aiMessageData = await aiMessageResponse.json();
+          const aiMessage = aiMessageData.message;
+          setMessages((prev) => [...prev, {
+            id: aiMessage.id,
+            senderId: aiMessage.senderId,
+            sender: aiMessage.sender,
+            type: aiMessage.type,
+            content: aiMessage.content,
+            file: aiMessage.file,
+            createdAt: aiMessage.createdAt,
+            isOwn: false,
+            readBy: aiMessage.readBy || [],
+          }]);
+        } else {
+          // 如果保存失败，仍然显示消息（但不持久化）
+          const aiMessage: Message = {
+            id: 'ai-' + Date.now(),
+            senderId: 'ntu-ai-support',
+            sender: {
+              id: 'ntu-ai-support',
+              name: 'NTU AI 客服',
+              avatar: null,
+            },
+            type: 'text',
+            content: aiData.response,
+            file: null,
+            createdAt: new Date().toISOString(),
+            isOwn: false,
+            readBy: [],
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        }
+      } catch (error: any) {
+        console.error('AI 服務錯誤:', error);
+        // 显示错误消息
+        const errorMessage: Message = {
+          id: 'error-' + Date.now(),
+          senderId: 'ntu-ai-support',
+          sender: {
+            id: 'ntu-ai-support',
+            name: 'NTU AI 客服',
+            avatar: null,
+          },
+          type: 'text',
+          content: '抱歉，發生錯誤：' + (error.message || '無法連接到 AI 服務'),
+          file: null,
+          createdAt: new Date().toISOString(),
+          isOwn: false,
+          readBy: [],
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setSending(false);
+        // 重新聚焦输入框
+        setTimeout(() => {
+          if (messageInputRef.current) {
+            messageInputRef.current.focus();
+          }
+        }, 50);
+      }
       return;
     }
 

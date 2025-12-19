@@ -360,7 +360,13 @@ export default function TopBar() {
         <Tooltip title="個人行事曆">
           <IconButton 
             onClick={handleCalendarClick}
-            sx={{ pointerEvents: 'auto' }}
+            sx={{ 
+              pointerEvents: 'auto',
+              backgroundColor: pathname === '/calendar' ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
+              '&:hover': {
+                backgroundColor: pathname === '/calendar' ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+              },
+            }}
           >
             <CalendarMonthIcon sx={{ color: 'black' }} />
           </IconButton>
@@ -368,7 +374,13 @@ export default function TopBar() {
         <Tooltip title="課表">
           <IconButton 
             onClick={handleScheduleClick}
-            sx={{ pointerEvents: 'auto' }}
+            sx={{ 
+              pointerEvents: 'auto',
+              backgroundColor: pathname === '/schedule' ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
+              '&:hover': {
+                backgroundColor: pathname === '/schedule' ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+              },
+            }}
           >
             <ClassIcon sx={{ color: 'black' }} />
           </IconButton>

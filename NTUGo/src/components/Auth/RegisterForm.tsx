@@ -2,8 +2,6 @@
 
 import * as React from 'react';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -52,28 +50,30 @@ export default function RegisterForm({
   onGoogleLogin,
 }: RegisterFormProps) {
   return (
-    <Card
-      sx={{
-        width: '100%',
-        maxWidth: 450,
-        borderRadius: 3,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        backgroundColor: '#ffffff',
-      }}
-    >
-      <CardContent sx={{ p: 4 }}>
-        <Typography
-          variant="h4"
-          component="h1"
-          sx={{
-            mb: 3,
-            fontWeight: 700,
-            color: '#212121',
-            textAlign: 'left',
-          }}
-        >
-          建立帳戶
-        </Typography>
+    <Box>
+      <Typography
+        variant="h4"
+        component="h1"
+        sx={{
+          mb: 1,
+          fontWeight: 700,
+          color: '#1a1a2e',
+          textAlign: 'left',
+          fontSize: { xs: '1.75rem', md: '2rem' },
+        }}
+      >
+        註冊
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          mb: 4,
+          color: '#757575',
+          textAlign: 'left',
+        }}
+      >
+        Create your free account
+      </Typography>
 
         <Box component="form" onSubmit={onSubmit}>
           {error && (
@@ -93,8 +93,8 @@ export default function RegisterForm({
 
           <TextField
             fullWidth
-            label="姓名"
-            placeholder="姓名"
+            label="Name:"
+            placeholder="Your name"
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             disabled={loading}
@@ -104,14 +104,18 @@ export default function RegisterForm({
                 borderRadius: 2,
                 backgroundColor: '#ffffff',
               },
+              '& .MuiInputLabel-root': {
+                fontSize: '0.875rem',
+                fontWeight: 500,
+              },
             }}
           />
 
           <TextField
             fullWidth
             type="email"
-            label="電子郵件"
-            placeholder="your-email@example.com"
+            label="E-mail address:"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
             required
@@ -123,6 +127,10 @@ export default function RegisterForm({
               '& .MuiOutlinedInput-root': {
                 borderRadius: 2,
                 backgroundColor: '#ffffff',
+              },
+              '& .MuiInputLabel-root': {
+                fontSize: '0.875rem',
+                fontWeight: 500,
               },
             }}
           />
@@ -142,8 +150,8 @@ export default function RegisterForm({
           <TextField
             fullWidth
             type="password"
-            label="密碼"
-            placeholder="密碼"
+            label="Password:"
+            placeholder="Enter 8 characters or more"
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             required
@@ -153,6 +161,10 @@ export default function RegisterForm({
               '& .MuiOutlinedInput-root': {
                 borderRadius: 2,
                 backgroundColor: '#ffffff',
+              },
+              '& .MuiInputLabel-root': {
+                fontSize: '0.875rem',
+                fontWeight: 500,
               },
             }}
           />
@@ -179,7 +191,7 @@ export default function RegisterForm({
               },
             }}
           >
-            {loading ? '註冊中...' : '建立帳戶'}
+            {loading ? '註冊中...' : 'CREATE ACCOUNT'}
           </Button>
 
           <Box
@@ -187,6 +199,7 @@ export default function RegisterForm({
               display: 'flex',
               alignItems: 'center',
               mb: 3,
+              mt: 3,
             }}
           >
             <Divider sx={{ flexGrow: 1 }} />
@@ -207,7 +220,7 @@ export default function RegisterForm({
           <Box
             sx={{
               textAlign: 'center',
-              mt: 2,
+              mt: 3,
             }}
           >
             <Typography
@@ -233,8 +246,7 @@ export default function RegisterForm({
             </Typography>
           </Box>
         </Box>
-      </CardContent>
-    </Card>
+    </Box>
   );
 }
 
