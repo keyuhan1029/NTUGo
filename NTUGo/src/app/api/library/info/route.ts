@@ -259,19 +259,6 @@ export async function GET() {
         const inhouseMatch = scriptContent.match(/var\s+StudyRoom_inhouse\s*=\s*(\d+)/i);
         const totalMatch = scriptContent.match(/var\s+StudyRoom_total_seat\s*=\s*(\d+)/i);
         
-        if (vacancyMatch) {
-          studyRoom.available = parseInt(vacancyMatch[1]);
-          console.log('從 StudyRoom_vacancy 找到尚有座位:', studyRoom.available);
-        }
-        if (inhouseMatch) {
-          studyRoom.occupied = parseInt(inhouseMatch[1]);
-          console.log('從 StudyRoom_inhouse 找到已佔座位:', studyRoom.occupied);
-        }
-        if (totalMatch) {
-          studyRoom.total = parseInt(totalMatch[1]);
-          console.log('從 StudyRoom_total_seat 找到總座位數:', studyRoom.total);
-        }
-        
         if (studyRoom.total > 0 || (studyRoom.available > 0 && studyRoom.occupied > 0)) {
           if (!studyRoom.total) {
             studyRoom.total = studyRoom.occupied + studyRoom.available;

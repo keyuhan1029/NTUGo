@@ -10,7 +10,6 @@ import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import Grid from '@mui/material/Grid';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import MainLayout from '@/components/Layout/MainLayout';
@@ -21,6 +20,7 @@ const categoryColors: Record<AnnouncementCategory, string> = {
   '國際交流': '#4caf50',
   '社會服務': '#9c27b0',
   '小福/鹿鳴堂': '#ff9800',
+  '一般公告': '#757575',
 };
 
 // 解析系友周活動內容
@@ -82,18 +82,28 @@ function AlumniWeekContent({ content }: { content: string }) {
       <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
         活動安排
       </Typography>
-      <Grid container spacing={2}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(3, 1fr)',
+          },
+          gap: 2,
+        }}
+      >
         {weeks.map((week, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
-            <Card
-              sx={{
-                height: '100%',
-                backgroundColor: '#ffffff',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                },
-              }}
+          <Card
+            key={index}
+            sx={{
+              height: '100%',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              },
+            }}
             >
               <CardContent>
                 <Typography
@@ -143,9 +153,8 @@ function AlumniWeekContent({ content }: { content: string }) {
                 )}
               </CardContent>
             </Card>
-          </Grid>
         ))}
-      </Grid>
+      </Box>
     </Box>
   );
 }
@@ -247,7 +256,7 @@ export default function AnnouncementDetailPage() {
             <Chip
               label={announcement.category}
               sx={{
-                backgroundColor: categoryColors[announcement.category] || '#757575',
+                backgroundColor: categoryColors[announcement.category as AnnouncementCategory] || '#757575',
                 color: 'white',
                 fontWeight: 500,
               }}

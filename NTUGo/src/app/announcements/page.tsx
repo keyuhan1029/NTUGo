@@ -94,16 +94,19 @@ export default function AnnouncementsPage() {
         }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, color: '#0F4C75' }}>
-            活動
-          </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<SettingsIcon />}
-            onClick={() => setSubscriptionDialogOpen(true)}
-          >
-            订阅设置
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#0F4C75' }}>
+              活動
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<SettingsIcon />}
+              onClick={() => setSubscriptionDialogOpen(true)}
+            >
+              訂閱設置
+            </Button>
+          </Box>
         </Box>
 
         <Tabs
@@ -133,7 +136,7 @@ export default function AnnouncementsPage() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle>订阅设置</DialogTitle>
+          
           <DialogContent>
             <SubscriptionSettings onClose={() => setSubscriptionDialogOpen(false)} />
           </DialogContent>

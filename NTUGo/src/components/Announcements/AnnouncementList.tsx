@@ -6,9 +6,6 @@ import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Pagination from '@mui/material/Pagination';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -234,9 +231,18 @@ function AlumniWeekTable({ announcements }: { announcements: Array<{ _id: string
                 {week.dateRange}
               </Typography>
               
-              <Grid container spacing={4}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    md: 'repeat(2, 1fr)',
+                  },
+                  gap: 4,
+                }}
+              >
                 {/* 小福區域 */}
-                <Grid item xs={12} md={6}>
+                <Box>
                   <Box
                     sx={{
                       display: 'flex',
@@ -304,10 +310,10 @@ function AlumniWeekTable({ announcements }: { announcements: Array<{ _id: string
                       ))}
                     </Box>
                   )}
-                </Grid>
+                </Box>
                 
                 {/* 鹿鳴堂區域 */}
-                <Grid item xs={12} md={6}>
+                <Box>
                   <Box
                     sx={{
                       display: 'flex',
@@ -375,8 +381,8 @@ function AlumniWeekTable({ announcements }: { announcements: Array<{ _id: string
                       ))}
                     </Box>
                   )}
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </Box>
           );
         })}

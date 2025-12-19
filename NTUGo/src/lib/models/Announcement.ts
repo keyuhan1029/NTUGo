@@ -1,7 +1,7 @@
 import { getDatabase } from '../mongodb';
 import { ObjectId } from 'mongodb';
 
-export type AnnouncementCategory = '社團資訊' | '國際交流' | '社會服務' | '小福/鹿鳴堂';
+export type AnnouncementCategory = '社團資訊' | '國際交流' | '社會服務' | '小福/鹿鳴堂' | '一般公告';
 
 export interface Announcement {
   _id?: string | ObjectId;

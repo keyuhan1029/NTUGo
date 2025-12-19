@@ -154,16 +154,30 @@ export function PusherProvider({ children }: PusherProviderProps) {
   }, []);
 
   const subscribeToChannel = useCallback((channelName: string): Channel | null => {
-    if (!pusher) return null;
+    if (!pusher) {
+      console.warn(`[PusherContext] Pusher 實例不存在，無法訂閱頻道: ${channelName}`);
+      return null;
+    }
+
+    // 檢查連接狀態
+    if (pusher.connection.state !== 'connected' && pusher.connection.state !== 'connecting') {
+      console.warn(`[PusherContext] Pusher 未連接 (狀態: ${pusher.connection.state})，無法訂閱頻道: ${channelName}`);
+      return null;
+    }
 
     // 如果已經訂閱，返回現有 channel
     if (channelsRef.current.has(channelName)) {
       return channelsRef.current.get(channelName)!;
     }
 
-    const channel = pusher.subscribe(channelName);
-    channelsRef.current.set(channelName, channel);
-    return channel;
+    try {
+      const channel = pusher.subscribe(channelName);
+      channelsRef.current.set(channelName, channel);
+      return channel;
+    } catch (error) {
+      console.error(`[PusherContext] 訂閱頻道 ${channelName} 時發生錯誤:`, error);
+      return null;
+    }
   }, [pusher]);
 
   const unsubscribeFromChannel = useCallback((channelName: string) => {
@@ -266,40 +280,41 @@ export function useUserNotifications(
     const channelName = `private-user-${userId}`;
     const channel = subscribeToChannel(channelName);
 
-    if (channel) {
-      // 處理訂閱成功
-      channel.bind('pusher:subscription_succeeded', () => {
-        console.log(`[PusherContext] 頻道 ${channelName} 訂閱成功`);
-      });
-
-      // 處理訂閱錯誤
-      channel.bind('pusher:subscription_error', (error: any) => {
-        console.error(`[PusherContext] 頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
-      });
-
-      // 始终绑定事件，使用包装函数来调用最新的回调（如果存在）
-      // 这样即使回调函数在后续渲染中被添加，事件也能正常工作
-      channel.bind('friend-request', (data: any) => {
-        callbacksRef.current?.onFriendRequest?.(data);
-      });
-      channel.bind('friend-accepted', (data: any) => {
-        callbacksRef.current?.onFriendAccepted?.(data);
-      });
-      channel.bind('chat-update', (data: any) => {
-        callbacksRef.current?.onChatUpdate?.(data);
-      });
-      channel.bind('bus-arrival', (data: any) => {
-        console.log(`[PusherContext] 收到 bus-arrival 事件: userId=${userId}`, data);
-        if (callbacksRef.current?.onBusArrival) {
-          console.log(`[PusherContext] 調用 onBusArrival 回調`);
-          callbacksRef.current.onBusArrival(data);
-        } else {
-          console.warn(`[PusherContext] onBusArrival 回調不存在`);
-        }
-      });
-    } else {
+    if (!channel) {
       console.warn(`[PusherContext] 無法訂閱頻道 ${channelName}: channel 為 null`);
+      return;
     }
+
+    // 處理訂閱成功
+    channel.bind('pusher:subscription_succeeded', () => {
+      console.log(`[PusherContext] 頻道 ${channelName} 訂閱成功`);
+    });
+
+    // 處理訂閱錯誤
+    channel.bind('pusher:subscription_error', (error: any) => {
+      console.error(`[PusherContext] 頻道 ${channelName} 訂閱失敗:`, error?.type || error?.error || JSON.stringify(error));
+    });
+
+    // 始终绑定事件，使用包装函数来调用最新的回调（如果存在）
+    // 这样即使回调函数在后续渲染中被添加，事件也能正常工作
+    channel.bind('friend-request', (data: any) => {
+      callbacksRef.current?.onFriendRequest?.(data);
+    });
+    channel.bind('friend-accepted', (data: any) => {
+      callbacksRef.current?.onFriendAccepted?.(data);
+    });
+    channel.bind('chat-update', (data: any) => {
+      callbacksRef.current?.onChatUpdate?.(data);
+    });
+    channel.bind('bus-arrival', (data: any) => {
+      console.log(`[PusherContext] 收到 bus-arrival 事件: userId=${userId}`, data);
+      if (callbacksRef.current?.onBusArrival) {
+        console.log(`[PusherContext] 調用 onBusArrival 回調`);
+        callbacksRef.current.onBusArrival(data);
+      } else {
+        console.warn(`[PusherContext] onBusArrival 回調不存在`);
+      }
+    });
 
     return () => {
       if (channel) {

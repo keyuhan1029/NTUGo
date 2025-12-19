@@ -16,6 +16,7 @@ const CATEGORIES: AnnouncementCategory[] = [
   '國際交流',
   '社會服務',
   '小福/鹿鳴堂',
+  '一般公告',
 ];
 
 interface SubscriptionSettingsProps {

@@ -25,6 +25,7 @@ const categoryColors: Record<AnnouncementCategory, string> = {
   '國際交流': '#4caf50',
   '社會服務': '#9c27b0',
   '小福/鹿鳴堂': '#ff9800',
+  '一般公告': '#757575',
 };
 
 export default function AnnouncementCard({
