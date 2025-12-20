@@ -14,7 +14,6 @@
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
     "@react-google-maps/api": "^2.20.7",
-    "@types/cheerio": "^0.22.35",
     "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
@@ -40,8 +39,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/webidl-conversions": "^7.0.3",
-    "@types/whatwg-url": "^13.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.4",
     "typescript": "^5"

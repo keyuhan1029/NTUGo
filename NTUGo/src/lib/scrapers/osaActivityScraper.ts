@@ -21,7 +21,8 @@ const CATEGORY_MAP: Record<string, AnnouncementCategory> = {
 
 // 分類對應的 tab 參數（根據網站實際結構）
 // 根據用戶提供的網頁，tab 0 是全部，其他數字對應不同分類
-const CATEGORY_TAB_MAP: Record<AnnouncementCategory, number[]> = {
+// 注意：只有部分分類有對應的 tab，使用 Partial 類型
+const CATEGORY_TAB_MAP: Partial<Record<AnnouncementCategory, number[]>> = {
   '社團資訊': [10, 0], // tab 10 是社團資訊專頁（根據用戶提供的網頁 https://osa_activity.ntu.edu.tw/board/index/tab/10）
   '國際交流': [8, 0], // tab 8 是國際交流專頁（根據用戶提供的網頁 https://osa_activity.ntu.edu.tw/board/index/tab/8）
   '社會服務': [14, 0], // tab 14 是社會服務專頁（根據用戶提供的網頁 https://osa_activity.ntu.edu.tw/board/index/tab/14）
@@ -37,7 +38,7 @@ function generateSourceId(url: string, title: string): string {
  * 從單個頁面解析公告
  */
 function parseAnnouncementsFromPage(
-  $: cheerio.CheerioAPI,
+  $: ReturnType<typeof cheerio.load>,
   targetCategory: AnnouncementCategory,
   baseUrl: string,
   tab: number = 0
@@ -150,30 +151,26 @@ function parseAnnouncementsFromPage(
         // 1. 如果在特定分類頁面（tab !== 0），強制使用目標分類（確保每個分類至少有5個項目）
         // 2. 如果在全部頁面（tab === 0），優先使用檢測到的分類，但如果檢測不到明確分類，也使用目標分類（用於補充）
         let finalCategory: AnnouncementCategory;
-        if (targetCategory !== '全部') {
-          if (tab !== 0) {
-            // 在特定分類頁面，強制使用目標分類（確保能抓到足夠的項目）
+        if (tab !== 0) {
+          // 在特定分類頁面，強制使用目標分類（確保能抓到足夠的項目）
+          finalCategory = targetCategory;
+        } else {
+          // 在全部頁面，如果檢測到的分類與目標匹配，使用檢測到的
+          // 否則，如果檢測不到明確分類（是"一般公告"），也使用目標分類（允許補充）
+          if (detectedCategory === targetCategory) {
+            finalCategory = detectedCategory;
+          } else if (!detectedCategory) {
+            // 檢測不到明確分類，使用目標分類（允許從全部頁面補充到目標分類）
             finalCategory = targetCategory;
           } else {
-            // 在全部頁面，如果檢測到的分類與目標匹配，使用檢測到的
-            // 否則，如果檢測不到明確分類（是"一般公告"），也使用目標分類（允許補充）
-            if (detectedCategory === targetCategory) {
-              finalCategory = detectedCategory;
-            } else if (!detectedCategory) {
-              // 檢測不到明確分類，使用目標分類（允許從全部頁面補充到目標分類）
-              finalCategory = targetCategory;
-            } else {
-              // 檢測到其他分類，使用檢測到的分類
-              finalCategory = detectedCategory;
-            }
+            // 檢測到其他分類，使用檢測到的分類
+            finalCategory = detectedCategory;
           }
-        } else {
-          finalCategory = detectedCategory;
         }
 
-        // 如果目標分類不是"全部"，且最終分類不匹配，跳過
+        // 如果最終分類不匹配目標分類，跳過
         // 但在全部頁面（tab === 0）時，允許通過以便後續根據關鍵詞歸類
-        if (targetCategory !== '全部' && finalCategory !== targetCategory) {
+        if (finalCategory !== targetCategory) {
           if (tab === 0) {
             // 在全部頁面，允許通過，後續會根據關鍵詞或強制歸類
             // 暫時使用檢測到的分類，後續會根據關鍵詞調整
@@ -316,8 +313,8 @@ export async function scrapeAnnouncements(
             const allPageAnnouncements = parseAnnouncementsFromPage($, category, url, 0);
             console.log(`  從全部頁面解析到 ${allPageAnnouncements.length} 條公告`);
 
-            // 定義每個分類的關鍵詞
-            const categoryKeywords: Record<AnnouncementCategory, string[]> = {
+            // 定義每個分類的關鍵詞（只有部分分類有定義關鍵詞）
+            const categoryKeywords: Partial<Record<AnnouncementCategory, string[]>> = {
               '社團資訊': ['社團', '社團資訊', '社團資訊系統', '社團登記', '社團負責人', '社團評鑑', '社團博覽會', '社團聯展', '小福', '鹿鳴'],
               '國際交流': ['國際', '國際交流', '全球集思', '海外', '交換', '外國'],
               '社會服務': ['社會服務', '服務學習', '公益', '志工', '送愛', '慰問', '基金會'],
