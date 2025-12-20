@@ -47,23 +47,15 @@ const containerStyle = {
 };
 
 // 自訂校園地標圖示（使用 SVG path）
-// 新體育館 icon（對應 NTUSportsCenter.svg）
-const NTU_SPORTS_CENTER_PATH =
-  'M 100 70 Q 256 10 412 70 L 472 40 L 442 100 Q 502 256 442 412 L 472 472 L 412 442 Q 256 502 100 442 L 40 472 L 70 412 Q 10 256 70 100 L 40 40 Z';
-const NTU_SPORTS_CENTER_VIEWBOX = '0 0 512 512';
-
 // 總圖書館 icon（對應 NTUMainLibrary.svg）
 const NTU_MAIN_LIBRARY_PATH =
   'M 250 50 L 450 50 L 450 200 L 500 200 L 500 550 L 50 550 L 50 200 L 250 200 Z';
 const NTU_MAIN_LIBRARY_VIEWBOX = '0 0 500 600';
 
-// 新體經緯度邊界（你指定的範圍）
-const GYM_BOUNDS = {
-  north: 25.021999,
-  south: 25.021286,
-  east: 121.535645,
-  west: 121.534778,
-};
+// 社科院大樓 T 字型 icon（對應 socialsciences.svg）
+const SOCIAL_SCIENCE_PATH =
+  'M 20 20 L 580 20 L 580 150 L 420 150 L 420 380 L 240 380 L 240 150 L 20 150 Z';
+const SOCIAL_SCIENCE_VIEWBOX = '0 0 600 400';
 
 // 總圖書館經緯度邊界（你指定的範圍）
 const LIBRARY_BOUNDS = {
@@ -71,6 +63,14 @@ const LIBRARY_BOUNDS = {
   south: 25.017039,
   east: 121.541376,
   west: 121.540522,
+};
+
+// 社科院大樓經緯度邊界
+const SOCIAL_SCIENCE_BOUNDS = {
+  north: 25.020919905149086,
+  south: 25.02022667108943,
+  east: 121.54316105756216,
+  west: 121.54151168678216,
 };
 
 // Google Maps Styling: 
@@ -414,38 +414,6 @@ export default function MapComponent() {
     };
   }, [fetchFriendsLocations]);
 
-  // 處理建築物點擊
-  const handleBuildingClick = React.useCallback((building: MainBuilding | OtherBuilding) => {
-    const friendsInThisBuilding = friendsInBuildings.get(building.id);
-    const friendsList = friendsInThisBuilding?.friends || [];
-    
-    if (isMainBuilding(building)) {
-      // 主要建築物使用 SVG 覆蓋層，計算中心點
-      const centerLat = (building.bounds.north + building.bounds.south) / 2;
-      const centerLng = (building.bounds.east + building.bounds.west) / 2;
-      
-      setSelectedMarker({
-        id: building.id,
-        name: building.name,
-        lat: centerLat,
-        lng: centerLng,
-        type: 'building',
-        friendsList,
-        hasFriends: friendsList.length > 0,
-      });
-    } else {
-      setSelectedMarker({
-        id: building.id,
-        name: building.name,
-        lat: building.lat,
-        lng: building.lng,
-        type: 'building',
-        friendsList,
-        hasFriends: friendsList.length > 0,
-      });
-    }
-  }, [friendsInBuildings]);
-
   // 在地圖上添加標記
   const handleMapClick = React.useCallback((e: google.maps.MapMouseEvent) => {
     if (!isMarkingMode || !e.latLng) return;
@@ -656,6 +624,68 @@ export default function MapComponent() {
     }
   }, []);
 
+  // 處理建築物點擊
+  const handleBuildingClick = React.useCallback((building: MainBuilding | OtherBuilding) => {
+    const friendsInThisBuilding = friendsInBuildings.get(building.id);
+    const friendsList = friendsInThisBuilding?.friends || [];
+    
+    // 如果是綜合體育館，也獲取健身房人流資訊
+    if (building.id === 'sports_center') {
+      fetchGymOccupancy();
+    }
+
+    // 如果是社科院大樓，獲取社科圖座位資訊（帶載入動畫）
+    if (building.id === 'social') {
+      setLibraryLoading(true);
+      setLibraryError(null);
+      setLibraryInfo(null);
+      
+      fetch('/api/library/info')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setLibraryInfo(data.data);
+            setLibraryError(null);
+          } else {
+            setLibraryError(data.message || '無法獲取社科圖資訊');
+          }
+        })
+        .catch(err => {
+          console.error('獲取社科圖資訊失敗:', err);
+          setLibraryError('獲取社科圖資訊時發生錯誤');
+        })
+        .finally(() => {
+          setLibraryLoading(false);
+        });
+    }
+    
+    if (isMainBuilding(building)) {
+      // 主要建築物使用 SVG 覆蓋層，計算中心點
+      const centerLat = (building.bounds.north + building.bounds.south) / 2;
+      const centerLng = (building.bounds.east + building.bounds.west) / 2;
+      
+      setSelectedMarker({
+        id: building.id,
+        name: building.name,
+        lat: centerLat,
+        lng: centerLng,
+        type: building.id === 'sports_center' ? 'gym' : 'building',
+        friendsList,
+        hasFriends: friendsList.length > 0,
+      });
+    } else {
+      setSelectedMarker({
+        id: building.id,
+        name: building.name,
+        lat: building.lat,
+        lng: building.lng,
+        type: building.id === 'social' ? 'social-building' : 'building',
+        friendsList,
+        hasFriends: friendsList.length > 0,
+      });
+    }
+  }, [friendsInBuildings, fetchGymOccupancy]);
+
   // 獲取圖書館資訊
   const fetchLibraryInfo = React.useCallback(async () => {
     try {
@@ -692,15 +722,6 @@ export default function MapComponent() {
     }
   }, []);
 
-  // 處理健身房點擊
-  const handleGymClick = React.useCallback(() => {
-    const gymItem = LOCATIONS.campus.find((c) => c.type === 'gym');
-    if (gymItem) {
-      setSelectedMarker(gymItem);
-      fetchGymOccupancy();
-    }
-  }, [fetchGymOccupancy]);
-
   // 處理圖書館點擊
   const handleLibraryClick = React.useCallback(() => {
     const libraryItem = LOCATIONS.campus.find((c) => c.type === 'library');
@@ -709,6 +730,51 @@ export default function MapComponent() {
       fetchLibraryInfo();
     }
   }, [fetchLibraryInfo]);
+
+  // 處理社科院大樓點擊
+  const handleSocialScienceClick = React.useCallback(() => {
+    // 獲取社科院的朋友上課資訊
+    const friendsInSocialScience = friendsInBuildings.get('social');
+    const friendsList = friendsInSocialScience?.friends || [];
+    
+    // 計算中心點
+    const centerLat = (SOCIAL_SCIENCE_BOUNDS.north + SOCIAL_SCIENCE_BOUNDS.south) / 2;
+    const centerLng = (SOCIAL_SCIENCE_BOUNDS.east + SOCIAL_SCIENCE_BOUNDS.west) / 2;
+    
+    // 設置 selectedMarker
+    setSelectedMarker({
+      id: 'social',
+      name: '社科院大樓',
+      lat: centerLat,
+      lng: centerLng,
+      type: 'social-building',
+      friendsList,
+      hasFriends: friendsList.length > 0,
+    });
+    
+    // 獲取社科圖座位資訊（帶載入動畫）
+    setLibraryLoading(true);
+    setLibraryError(null);
+    setLibraryInfo(null);
+    
+    fetch('/api/library/info')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setLibraryInfo(data.data);
+          setLibraryError(null);
+        } else {
+          setLibraryError(data.message || '無法獲取社科圖資訊');
+        }
+      })
+      .catch(err => {
+        console.error('獲取社科圖資訊失敗:', err);
+        setLibraryError('獲取社科圖資訊時發生錯誤');
+      })
+      .finally(() => {
+        setLibraryLoading(false);
+      });
+  }, [friendsInBuildings]);
 
   // 計算兩點間距離（公里）- 使用 Haversine 公式
   const calculateDistance = React.useCallback((lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -1393,18 +1459,7 @@ export default function MapComponent() {
           })
           .filter(Boolean)}
 
-      {/* Campus Pins - 新體與總圖使用 SVGOverlay（會隨地圖縮放） */}
-      {/* 新體育館 SVG Overlay */}
-      <SVGOverlay
-        map={map}
-        bounds={GYM_BOUNDS}
-        svgPath={NTU_SPORTS_CENTER_PATH}
-        viewBox={NTU_SPORTS_CENTER_VIEWBOX}
-        defaultColor="#9e9e9e"
-        hoverColor="#000000"
-        onClick={handleGymClick}
-      />
-
+      {/* Campus Pins - 總圖和社科院使用 SVGOverlay（會隨地圖縮放） */}
       {/* 總圖書館 SVG Overlay */}
       <SVGOverlay
         map={map}
@@ -1415,6 +1470,22 @@ export default function MapComponent() {
         hoverColor="#000000"
         onClick={handleLibraryClick}
       />
+
+      {/* 社科院大樓 T字型 SVG Overlay - 有朋友時變紫色 */}
+      {(() => {
+        const hasFriends = friendsInBuildings.has('social');
+        return (
+          <SVGOverlay
+            map={map}
+            bounds={SOCIAL_SCIENCE_BOUNDS}
+            svgPath={SOCIAL_SCIENCE_PATH}
+            viewBox={SOCIAL_SCIENCE_VIEWBOX}
+            defaultColor={hasFriends ? '#9c27b0' : '#9e9e9e'}
+            hoverColor={hasFriends ? '#7b1fa2' : '#000000'}
+            onClick={handleSocialScienceClick}
+          />
+        );
+      })()}
 
       {/* 主要教學大樓 SVG 覆蓋層 - 共同、普通、新生、綜合、博雅 */}
       {MAIN_BUILDINGS.map((building) => {
@@ -1433,8 +1504,8 @@ export default function MapComponent() {
         );
       })}
 
-      {/* 其他建築物標記 - 所有建築物都顯示，有朋友的顯示紫色 */}
-      {OTHER_BUILDINGS.map((building) => {
+      {/* 其他建築物標記 - 所有建築物都顯示，有朋友的顯示紫色（隱藏已有 SVG 的建築物） */}
+      {OTHER_BUILDINGS.filter(b => !b.hidden).map((building) => {
         const hasFriends = friendsInBuildings.has(building.id);
         return (
           <MarkerF

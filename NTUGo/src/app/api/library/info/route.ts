@@ -2,17 +2,21 @@ import { NextResponse } from 'next/server';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+interface StudyRoomInfo {
+  occupied: number;
+  available: number;
+  total: number;
+}
+
 interface LibraryInfo {
   openingHours: {
     today: string;
     status: string; // '開館中' | '閉館'
     hours: string; // 例如: "08:00-22:00"
   };
-  studyRoom: {
-    occupied: number;
-    available: number;
-    total: number;
-  };
+  studyRoom: StudyRoomInfo;
+  // 社科圖自習室
+  socialScienceStudyRoom?: StudyRoomInfo;
   lastUpdated: string;
 }
 
@@ -225,16 +229,23 @@ export async function GET() {
       total: 0,
     };
 
+    // 社科圖自習室座位
+    let socialScienceStudyRoom = {
+      occupied: 0,
+      available: 0,
+      total: 0,
+    };
+
     // 直接從 JavaScript 變量中提取數據（根據實際 HTML 結構）
-    // jsonstr = [{"count":651}] - 尚有座位
-    // jsonstr2 = [{"count":814}] - 總座位數
+    // 總圖：jsonstr = [{"count":651}] - 尚有座位, jsonstr2 = [{"count":814}] - 總座位數
+    // 社科圖：jsonstr3 = [{"count":128}] - 尚有座位, jsonstr4 = [{"count":133}] - 總座位數
     
     const statsScriptTags = $stats('script').toArray();
     
     for (const script of statsScriptTags) {
       const scriptContent = $stats(script).html() || '';
       
-      // 直接查找 jsonstr 和 jsonstr2 變量定義
+      // 總圖：直接查找 jsonstr 和 jsonstr2 變量定義
       const jsonstrMatch = scriptContent.match(/var\s+jsonstr\s*=\s*\[\s*\{\s*"count"\s*:\s*(\d+)\s*\}\s*\]/i);
       const jsonstr2Match = scriptContent.match(/var\s+jsonstr2\s*=\s*\[\s*\{\s*"count"\s*:\s*(\d+)\s*\}\s*\]/i);
       
@@ -244,12 +255,28 @@ export async function GET() {
         studyRoom.available = vacancy;
         studyRoom.total = total;
         studyRoom.occupied = total - vacancy;
-        console.log('從 jsonstr 變量找到數據:', { available: studyRoom.available, total: studyRoom.total, occupied: studyRoom.occupied });
-        break;
+        console.log('總圖從 jsonstr 變量找到數據:', { available: studyRoom.available, total: studyRoom.total, occupied: studyRoom.occupied });
+      }
+
+      // 社科圖：查找 jsonstr3 和 jsonstr4 變量定義
+      const jsonstr3Match = scriptContent.match(/var\s+jsonstr3\s*=\s*\[\s*\{\s*"count"\s*:\s*(\d+)\s*\}\s*\]/i);
+      const jsonstr4Match = scriptContent.match(/var\s+jsonstr4\s*=\s*\[\s*\{\s*"count"\s*:\s*(\d+)\s*\}\s*\]/i);
+      
+      if (jsonstr3Match && jsonstr4Match) {
+        const ssVacancy = parseInt(jsonstr3Match[1]);
+        const ssTotal = parseInt(jsonstr4Match[1]);
+        socialScienceStudyRoom.available = ssVacancy;
+        socialScienceStudyRoom.total = ssTotal;
+        socialScienceStudyRoom.occupied = ssTotal - ssVacancy;
+        console.log('社科圖從 jsonstr3/4 變量找到數據:', { 
+          available: socialScienceStudyRoom.available, 
+          total: socialScienceStudyRoom.total, 
+          occupied: socialScienceStudyRoom.occupied 
+        });
       }
     }
     
-    // 如果沒找到，嘗試查找計算後的變量
+    // 如果總圖沒找到，嘗試查找計算後的變量
     if (studyRoom.total === 0) {
       for (const script of statsScriptTags) {
         const scriptContent = $stats(script).html() || '';
@@ -267,8 +294,38 @@ export async function GET() {
         }
       }
     }
+
+    // 如果社科圖沒找到，嘗試查找計算後的變量
+    if (socialScienceStudyRoom.total === 0) {
+      for (const script of statsScriptTags) {
+        const scriptContent = $stats(script).html() || '';
+        
+        // 查找 koolib_ava 和 koolib_un（社科圖計算後的變量）
+        const koollibAvaMatch = scriptContent.match(/var\s+koolib_ava\s*=\s*(\d+)/i);
+        const koollibUnMatch = scriptContent.match(/var\s+koolib_un\s*=\s*(\d+)/i);
+        const koollibTotalMatch = scriptContent.match(/var\s+koolib_total_seat\s*=\s*(\d+)/i);
+        
+        if (koollibAvaMatch) {
+          socialScienceStudyRoom.available = parseInt(koollibAvaMatch[1]);
+        }
+        if (koollibUnMatch) {
+          socialScienceStudyRoom.occupied = parseInt(koollibUnMatch[1]);
+        }
+        if (koollibTotalMatch) {
+          socialScienceStudyRoom.total = parseInt(koollibTotalMatch[1]);
+        } else if (socialScienceStudyRoom.available > 0 || socialScienceStudyRoom.occupied > 0) {
+          socialScienceStudyRoom.total = socialScienceStudyRoom.available + socialScienceStudyRoom.occupied;
+        }
+        
+        if (socialScienceStudyRoom.total > 0) {
+          console.log('社科圖從 koolib 變量找到數據:', socialScienceStudyRoom);
+          break;
+        }
+      }
+    }
     
-    console.log('最終提取結果:', { occupied: studyRoom.occupied, available: studyRoom.available, total: studyRoom.total });
+    console.log('最終提取結果 - 總圖:', { occupied: studyRoom.occupied, available: studyRoom.available, total: studyRoom.total });
+    console.log('最終提取結果 - 社科圖:', { occupied: socialScienceStudyRoom.occupied, available: socialScienceStudyRoom.available, total: socialScienceStudyRoom.total });
 
     // 格式化最後更新時間為台灣時間
     const now = new Date();
@@ -293,6 +350,7 @@ export async function GET() {
     const result: LibraryInfo = {
       openingHours,
       studyRoom,
+      socialScienceStudyRoom: socialScienceStudyRoom.total > 0 ? socialScienceStudyRoom : undefined,
       lastUpdated,
     };
     

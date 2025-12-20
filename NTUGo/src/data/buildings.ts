@@ -10,6 +10,10 @@
 const RECTANGLE_PATH = 'M 0 0 L 100 0 L 100 100 L 0 100 Z';
 const RECTANGLE_VIEWBOX = '0 0 100 100';
 
+// 綜合體育館 SVG path (對應 NTUSportsCenter.svg)
+const SPORTS_CENTER_PATH = 'M 100 70 Q 256 10 412 70 L 472 40 L 442 100 Q 502 256 442 412 L 472 472 L 412 442 Q 256 502 100 442 L 40 472 L 70 412 Q 10 256 70 100 L 40 40 Z';
+const SPORTS_CENTER_VIEWBOX = '0 0 512 512';
+
 export interface BuildingBounds {
   north: number;
   south: number;
@@ -32,6 +36,7 @@ export interface OtherBuilding {
   prefixes: string[]; // 教室名稱前綴
   lat: number;
   lng: number;
+  hidden?: boolean; // 是否隱藏標記（用於已有獨立 SVG 覆蓋層的建築物）
 }
 
 /**
@@ -81,7 +86,7 @@ export const MAIN_BUILDINGS: MainBuilding[] = [
   {
     id: 'comprehensive',
     name: '綜合教學館',
-    prefixes: ['綜', '綜合教學館'],
+    prefixes: ['綜合教學館', '綜教'],
     bounds: {
       north: 25.018354420790235,
       south: 25.01813493267677,
@@ -103,6 +108,19 @@ export const MAIN_BUILDINGS: MainBuilding[] = [
     },
     svgPath: RECTANGLE_PATH,
     viewBox: RECTANGLE_VIEWBOX,
+  },
+  {
+    id: 'sports_center',
+    name: '綜合體育館',
+    prefixes: ['綜合體育館', '綜體', '綜館', '新體'],
+    bounds: {
+      north: 25.021999,
+      south: 25.021286,
+      east: 121.535645,
+      west: 121.534778,
+    },
+    svgPath: SPORTS_CENTER_PATH,
+    viewBox: SPORTS_CENTER_VIEWBOX,
   },
 ];
 
@@ -133,7 +151,8 @@ export const OTHER_BUILDINGS: OtherBuilding[] = [
   { id: 'thinking', name: '思亮館', prefixes: ['思亮館', '思亮'], lat: 25.020944487533654, lng: 121.53866402445297 },
 
   // ===== 社科院 =====
-  { id: 'social', name: '社科院大樓', prefixes: ['社科院大樓', '社科院前排教室', '社科院後排教室', '社科'], lat: 25.020785158266026, lng: 121.54241024885106 },
+  // 社科院大樓已獨立為 T 字型 SVG 覆蓋層
+  { id: 'social', name: '社科院大樓', prefixes: ['社科院大樓', '社科院前排教室', '社科院後排教室', '社科'], lat: 25.020785158266026, lng: 121.54241024885106, hidden: true },
   { id: 'social_social_work', name: '社會暨社工系館', prefixes: ['社會暨社工系館', '社會社工系館', '社會工作系館', '社'], lat: 25.020196807636555, lng: 121.54169906118808 },
   { id: 'national_dev', name: '國發大樓', prefixes: ['國家發展研究所', '國發大樓', '國發'], lat: 25.020333319563445, lng: 121.54298087034894 },
   { id: 'news', name: '新聞研究所', prefixes: ['新聞研究所', '新聞'], lat: 25.019435597594217, lng: 121.54298833281294 },

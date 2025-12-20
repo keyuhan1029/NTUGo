@@ -174,6 +174,18 @@ function findBuildingByPrefix(prefix: string): MainBuilding | OtherBuilding | nu
   // 先檢查特殊前綴對應
   const normalizedPrefix = SPECIAL_PREFIX_MAP[prefix] || prefix;
   
+  // ===== 特殊情況處理：社科 vs 社 =====
+  // 「社科」→ 社科院大樓，「社」→ 社工系館
+  if (normalizedPrefix === '社科' || normalizedPrefix.startsWith('社科')) {
+    // 完全等於「社科」或以「社科」開頭 → 社科院大樓
+    const socialBuilding = [...MAIN_BUILDINGS, ...OTHER_BUILDINGS].find(b => b.id === 'social');
+    if (socialBuilding) return socialBuilding;
+  } else if (normalizedPrefix === '社') {
+    // 只有「社」→ 社工系館
+    const socialWorkBuilding = OTHER_BUILDINGS.find(b => b.id === 'social_social_work');
+    if (socialWorkBuilding) return socialWorkBuilding;
+  }
+  
   // 搜尋主要建築物
   for (const building of MAIN_BUILDINGS) {
     if (building.prefixes.some(p => 
