@@ -1,6 +1,7 @@
 /**
  * 台大教室爬蟲腳本
  * 爬取 https://gra206.aca.ntu.edu.tw/classrm/acarm/webcr-use-new 上的所有教室資料
+ * 包含教室詳細資訊（位置、容量、型態、設備等）
  */
 
 import * as cheerio from 'cheerio';
@@ -10,17 +11,32 @@ interface Building {
   name: string;
 }
 
+interface ClassroomDetail {
+  classroomId: string;
+  capacity: string;
+  location: string;      // 真實建築物位置
+  type: string;          // 教室型態（階梯、一般等）
+  equipment: string;     // 硬體設備
+  description: string;   // 教室描述
+}
+
 interface Classroom {
   buildingValue: string;
   buildingName: string;
   classroomId: string;
   classroomName: string;
+  // 詳細資訊
+  capacity?: string;
+  location?: string;
+  type?: string;
+  equipment?: string;
+  description?: string;
 }
 
 interface ClassroomApiResponse {
   status: string;
   room_ls: Array<{
-    cr_no: string;  // 教室編號，例如 "共101", "普301"
+    cr_no: string;
   }>;
 }
 
@@ -69,6 +85,47 @@ async function fetchClassroomsByBuilding(buildingValue: string): Promise<Classro
 }
 
 /**
+ * 獲取教室詳細資訊
+ */
+async function fetchClassroomDetail(buildingValue: string, classroomId: string): Promise<ClassroomDetail | null> {
+  const url = `${BASE_URL}?SYearDDL=1141&BuildingDDL=${encodeURIComponent(buildingValue)}&RoomDDL=${encodeURIComponent(classroomId)}`;
+  
+  try {
+    const html = await fetchPage(url);
+    const $ = cheerio.load(html);
+    
+    // 找到教室資訊表格
+    const infoTable = $('#ClassroomInfoGV_RoomInfoGV');
+    if (infoTable.length === 0) {
+      return null;
+    }
+
+    // 解析表格行
+    const dataRow = infoTable.find('tr').eq(1); // 第二行是資料
+    if (dataRow.length === 0) {
+      return null;
+    }
+
+    const cells = dataRow.find('td');
+    if (cells.length < 6) {
+      return null;
+    }
+
+    return {
+      classroomId: cells.eq(0).text().trim(),
+      capacity: cells.eq(1).text().trim(),
+      location: cells.eq(2).text().trim(),
+      type: cells.eq(3).text().trim(),
+      equipment: cells.eq(4).text().trim(),
+      description: cells.eq(5).text().trim(),
+    };
+  } catch (error) {
+    console.error(`  獲取教室 ${classroomId} 詳細資訊失敗:`, error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
  * 獲取所有建物/學院選項
  */
 function parseBuildings($: ReturnType<typeof cheerio.load>): Building[] {
@@ -90,9 +147,10 @@ function parseBuildings($: ReturnType<typeof cheerio.load>): Building[] {
 /**
  * 主要爬蟲函數
  */
-async function scrapeClassrooms(): Promise<Classroom[]> {
+async function scrapeClassrooms(fetchDetails: boolean = true): Promise<Classroom[]> {
   console.log('🏫 開始爬取台大教室資料...\n');
-  console.log(`📍 目標網址: ${BASE_URL}\n`);
+  console.log(`📍 目標網址: ${BASE_URL}`);
+  console.log(`📋 獲取詳細資訊: ${fetchDetails ? '是' : '否'}\n`);
 
   const allClassrooms: Classroom[] = [];
 
@@ -123,7 +181,7 @@ async function scrapeClassrooms(): Promise<Classroom[]> {
               buildingValue: building.value,
               buildingName: building.name,
               classroomId: room.cr_no,
-              classroomName: room.cr_no,  // 教室編號同時作為名稱
+              classroomName: room.cr_no,
             });
           }
           console.log(`  ✅ 找到 ${data.room_ls.length} 間教室`);
@@ -163,6 +221,48 @@ async function scrapeClassrooms(): Promise<Classroom[]> {
       console.error(`  ❌ 獲取失敗:`, error instanceof Error ? error.message : error);
     }
 
+    console.log(`\n總共找到 ${allClassrooms.length} 間教室`);
+
+    // 步驟 4: 獲取每個教室的詳細資訊（位置、容量等）
+    if (fetchDetails) {
+      console.log('\n🔎 步驟 4: 獲取教室詳細資訊（位置、容量等）...\n');
+      console.log('⚠️ 這可能需要一些時間，因為需要逐一請求每個教室...\n');
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < allClassrooms.length; i++) {
+        const classroom = allClassrooms[i];
+        
+        // 顯示進度
+        if ((i + 1) % 50 === 0 || i === allClassrooms.length - 1) {
+          console.log(`進度: ${i + 1}/${allClassrooms.length} (成功: ${successCount}, 失敗: ${failCount})`);
+        }
+        
+        try {
+          const detail = await fetchClassroomDetail(classroom.buildingValue, classroom.classroomId);
+          
+          if (detail) {
+            classroom.capacity = detail.capacity;
+            classroom.location = detail.location;
+            classroom.type = detail.type;
+            classroom.equipment = detail.equipment;
+            classroom.description = detail.description;
+            successCount++;
+          } else {
+            failCount++;
+          }
+          
+          // 避免請求過於頻繁 - 稍微加長延遲
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch {
+          failCount++;
+        }
+      }
+      
+      console.log(`\n詳細資訊獲取完成！成功: ${successCount}, 失敗: ${failCount}`);
+    }
+
     console.log(`\n========================================`);
     console.log(`🎉 爬取完成！共找到 ${allClassrooms.length} 間教室`);
     console.log(`========================================\n`);
@@ -181,13 +281,27 @@ async function scrapeClassrooms(): Promise<Classroom[]> {
 
       for (const [buildingName, classrooms] of Object.entries(byBuilding)) {
         console.log(`\n【${buildingName}】(${classrooms.length} 間)`);
-        // 只顯示前 5 間作為預覽
-        const preview = classrooms.slice(0, 5);
+        // 只顯示前 3 間作為預覽
+        const preview = classrooms.slice(0, 3);
         preview.forEach(c => {
-          console.log(`  - ${c.classroomName} (${c.classroomId})`);
+          const locationInfo = c.location ? ` → ${c.location}` : '';
+          console.log(`  - ${c.classroomName}${locationInfo}`);
         });
-        if (classrooms.length > 5) {
-          console.log(`  ... 還有 ${classrooms.length - 5} 間`);
+        if (classrooms.length > 3) {
+          console.log(`  ... 還有 ${classrooms.length - 3} 間`);
+        }
+      }
+
+      // 顯示一些有位置資訊的教室範例
+      if (fetchDetails) {
+        const classroomsWithLocation = allClassrooms.filter(c => c.location);
+        console.log(`\n📍 有位置資訊的教室數量: ${classroomsWithLocation.length}/${allClassrooms.length}`);
+        
+        if (classroomsWithLocation.length > 0) {
+          console.log('\n範例（前 10 間有位置資訊的教室）:');
+          classroomsWithLocation.slice(0, 10).forEach(c => {
+            console.log(`  - ${c.classroomName}: ${c.location} (容量: ${c.capacity}, 型態: ${c.type})`);
+          });
         }
       }
     }
@@ -234,6 +348,9 @@ async function saveAsTypeScript(classrooms: Classroom[], filename: string): Prom
     return acc;
   }, {} as Record<string, Classroom[]>);
 
+  // 提取所有唯一的位置
+  const uniqueLocations = [...new Set(classrooms.map(c => c.location).filter(Boolean))];
+
   let content = `/**
  * 台大教室資料
  * 自動生成於 ${new Date().toISOString()}
@@ -245,11 +362,21 @@ export interface Classroom {
   buildingName: string;
   classroomId: string;
   classroomName: string;
+  capacity?: string;
+  location?: string;      // 真實建築物位置
+  type?: string;          // 教室型態
+  equipment?: string;     // 硬體設備
+  description?: string;   // 教室描述
 }
 
 export const BUILDINGS = ${JSON.stringify(Object.keys(byBuilding), null, 2)} as const;
 
 export type BuildingName = typeof BUILDINGS[number];
+
+/**
+ * 所有唯一的位置名稱
+ */
+export const LOCATIONS = ${JSON.stringify(uniqueLocations.sort(), null, 2)} as const;
 
 export const CLASSROOMS: Classroom[] = ${JSON.stringify(classrooms, null, 2)};
 
@@ -273,14 +400,22 @@ export function getClassroomById(classroomId: string): Classroom | undefined {
 }
 
 /**
- * 搜尋教室（依名稱）
+ * 搜尋教室（依名稱或位置）
  */
 export function searchClassrooms(query: string): Classroom[] {
   const lowerQuery = query.toLowerCase();
   return CLASSROOMS.filter(c => 
     c.classroomName.toLowerCase().includes(lowerQuery) ||
-    c.classroomId.toLowerCase().includes(lowerQuery)
+    c.classroomId.toLowerCase().includes(lowerQuery) ||
+    (c.location && c.location.toLowerCase().includes(lowerQuery))
   );
+}
+
+/**
+ * 根據位置取得教室列表
+ */
+export function getClassroomsByLocation(location: string): Classroom[] {
+  return CLASSROOMS.filter(c => c.location === location);
 }
 
 export default CLASSROOMS;
@@ -290,8 +425,12 @@ export default CLASSROOMS;
   console.log(`💾 已儲存 TypeScript 檔案到: ${outputPath}`);
 }
 
+// 解析命令列參數
+const args = process.argv.slice(2);
+const skipDetails = args.includes('--skip-details') || args.includes('-s');
+
 // 執行爬蟲
-scrapeClassrooms()
+scrapeClassrooms(!skipDetails)
   .then(async (classrooms) => {
     if (classrooms.length > 0) {
       // 儲存為 JSON
@@ -302,4 +441,4 @@ scrapeClassrooms()
   })
   .catch(console.error);
 
-export { scrapeClassrooms, type Classroom, type Building };
+export { scrapeClassrooms, type Classroom, type Building, type ClassroomDetail };
