@@ -17,7 +17,6 @@ import SchoolIcon from '@mui/icons-material/School';
 import EmailIcon from '@mui/icons-material/Email';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import DescriptionIcon from '@mui/icons-material/Description';
 import { useMapContext } from '@/contexts/MapContext';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -119,9 +118,6 @@ export default function Sidebar() {
     window.open('https://course.ntu.edu.tw/', '_blank');
   }, []);
 
-  const handleDocumentsClick = React.useCallback(() => {
-    router.push('/documents');
-  }, [router]);
 
   const menuItems = React.useMemo(() => [
     { text: '主頁', icon: <HomeIcon />, action: handleHomeClick, active: pathname === '/' },
@@ -130,11 +126,10 @@ export default function Sidebar() {
     { text: '捷運', icon: <DirectionsSubwayIcon />, action: handleMetroClick, active: showMetroStations },
     { text: '社群', icon: <PeopleIcon />, action: handleCommunityClick, active: pathname === '/community' },
     { text: '活動', icon: <AnnouncementIcon />, action: handleAnnouncementsClick, active: pathname?.startsWith('/announcements') },
-    { text: '文檔管理', icon: <DescriptionIcon />, action: handleDocumentsClick, active: pathname === '/documents' },
     { text: 'NTU COOL', icon: <SchoolIcon />, action: handleNTUCOOLClick, active: false },
     { text: 'NTU Mail', icon: <EmailIcon />, action: handleNTUMailClick, active: false },
     { text: '臺大課程網', icon: <MenuBookIcon />, action: handleNTUCourseClick, active: false },
-  ], [handleHomeClick, handleBusClick, handleYouBikeClick, handleMetroClick, handleCommunityClick, handleAnnouncementsClick, handleDocumentsClick, handleNTUCOOLClick, handleNTUMailClick, handleNTUCourseClick, showBusStops, showYouBikeStations, showMetroStations, pathname]);
+  ], [handleHomeClick, handleBusClick, handleYouBikeClick, handleMetroClick, handleCommunityClick, handleAnnouncementsClick, handleNTUCOOLClick, handleNTUMailClick, handleNTUCourseClick, showBusStops, showYouBikeStations, showMetroStations, pathname]);
 
   return (
     <Drawer 

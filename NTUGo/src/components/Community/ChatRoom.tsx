@@ -17,7 +17,6 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ImageIcon from '@mui/icons-material/Image';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import DownloadIcon from '@mui/icons-material/Download';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useChatRoomMessages } from '@/contexts/PusherContext';
 import GroupMembersModal from './GroupMembersModal';
 
