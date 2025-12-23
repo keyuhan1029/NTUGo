@@ -105,6 +105,24 @@ export class UserModel {
     return bcrypt.compare(password, user.password);
   }
 
+  // 更新用戶密碼
+  static async updatePassword(email: string, newPassword: string): Promise<boolean> {
+    const db = await getDatabase();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const result = await db.collection<User>('users').updateOne(
+      { email },
+      {
+        $set: {
+          password: hashedPassword,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    return result.modifiedCount > 0;
+  }
+
   static async updateGoogleUser(
     email: string,
     googleData: {

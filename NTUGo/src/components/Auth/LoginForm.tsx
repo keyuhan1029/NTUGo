@@ -131,7 +131,7 @@ export default function LoginForm({ onSubmit }: LoginFormProps) {
       {/* Forgot Password Link */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
         <Link
-          href="#"
+          href="/forgot-password"
           sx={{
             fontSize: '0.875rem',
             color: '#757575',

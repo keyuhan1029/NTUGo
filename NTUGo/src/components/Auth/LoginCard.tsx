@@ -14,9 +14,10 @@ interface LoginCardProps {
   onGoogleLogin: () => void;
   isLoading?: boolean;
   error?: string | null;
+  successMessage?: string | null;
 }
 
-export default function LoginCard({ onEmailLogin, onGoogleLogin, isLoading, error }: LoginCardProps) {
+export default function LoginCard({ onEmailLogin, onGoogleLogin, isLoading, error, successMessage }: LoginCardProps) {
   return (
     <Box>
       {/* Title */}
@@ -51,6 +52,13 @@ export default function LoginCard({ onEmailLogin, onGoogleLogin, isLoading, erro
         </Alert>
       )}
 
+      {/* Success Message */}
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          {successMessage}
+        </Alert>
+      )}
+
       {/* Login Form */}
       <LoginForm onSubmit={onEmailLogin} />
 
@@ -79,7 +87,7 @@ export default function LoginCard({ onEmailLogin, onGoogleLogin, isLoading, erro
       {/* Google Login Button */}
       <GoogleLoginButton onClick={onGoogleLogin} disabled={isLoading} />
 
-      {/* Create Account Link */}
+      {/* Links */}
       <Box
         sx={{
           textAlign: 'center',

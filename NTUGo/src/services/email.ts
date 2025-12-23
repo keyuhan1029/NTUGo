@@ -10,7 +10,12 @@ const getResendApiKey = (): string => {
   return apiKey;
 };
 
-function renderVerificationEmailTemplate(code: string): string {
+function renderVerificationEmailTemplate(code: string, purpose: 'register' | 'forgot-password' = 'register'): string {
+  const title = purpose === 'forgot-password' ? '重置密碼驗證碼' : '歡迎使用 NTUGo！';
+  const description = purpose === 'forgot-password' 
+    ? '您正在申請重置 NTUGo 帳號密碼，請使用以下驗證碼完成驗證。'
+    : '請在註冊頁面輸入此驗證碼以完成郵箱驗證。';
+  
   return `
 <!DOCTYPE html>
 <html>
@@ -79,8 +84,10 @@ function renderVerificationEmailTemplate(code: string): string {
 <body>
   <div class="container">
     <div class="header">
-      <h1>歡迎使用 NTUGo！</h1>
+      <h1>${title}</h1>
     </div>
+    
+    <p class="message">${description}</p>
     
     <p class="message">您的驗證碼是：</p>
     
@@ -89,7 +96,7 @@ function renderVerificationEmailTemplate(code: string): string {
     </div>
     
     <p class="message">
-      請在註冊頁面輸入此驗證碼以完成郵箱驗證。
+      ${purpose === 'forgot-password' ? '請在重置密碼頁面輸入此驗證碼以繼續。' : '請在註冊頁面輸入此驗證碼以完成郵箱驗證。'}
     </p>
     
     <p class="message">
@@ -110,21 +117,27 @@ function renderVerificationEmailTemplate(code: string): string {
   `.trim();
 }
 
-export async function sendVerificationCode(email: string, code: string): Promise<void> {
+export async function sendVerificationCode(email: string, code: string, purpose: 'register' | 'forgot-password' = 'register'): Promise<void> {
   try {
  
     const apiKey = getResendApiKey();
     const resend = new Resend(apiKey);
     const fromEmail = process.env.RESEND_FROM_EMAIL?.trim() || 'onboarding@resend.dev';
 
+    const subject = purpose === 'forgot-password' 
+      ? `[NTUGo] 重置密碼驗證碼：${code}`
+      : `[NTUGo] 您的驗證碼是：${code}`;
+
     console.log('正在發送驗證碼郵件到:', email);
     console.log('發送地址:', fromEmail);
+    console.log('郵件用途:', purpose);
+    console.log('驗證碼:', code);
 
     const result = await resend.emails.send({
       from: fromEmail,
       to: email,
-      subject: `[NTUGo] 您的驗證碼是：${code}`,
-      html: renderVerificationEmailTemplate(code),
+      subject: subject,
+      html: renderVerificationEmailTemplate(code, purpose),
     });
 
     if (result.error) {

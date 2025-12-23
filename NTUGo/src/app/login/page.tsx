@@ -9,11 +9,14 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
-  // 檢查 URL 參數中的錯誤
+  // 檢查 URL 參數中的錯誤和消息
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const errorParam = params.get('error');
+    const messageParam = params.get('message');
+    
     if (errorParam) {
       const errorMessages: Record<string, string> = {
         no_code: '未收到 Google 授權碼，請重試',
@@ -25,6 +28,12 @@ export default function LoginPage() {
         oauth_error: 'Google 登入發生錯誤，請重試',
       };
       setError(errorMessages[errorParam] || '登入失敗，請重試');
+      // 清除 URL 參數
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (messageParam) {
+      // 顯示成功消息（例如：密碼重置成功）
+      setError(null);
+      setSuccessMessage(decodeURIComponent(messageParam));
       // 清除 URL 參數
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -68,6 +77,7 @@ export default function LoginPage() {
         onGoogleLogin={handleGoogleLogin}
         isLoading={isLoading}
         error={error}
+        successMessage={successMessage}
       />
     </LoginPageLayout>
   );
