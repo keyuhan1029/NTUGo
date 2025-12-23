@@ -28,9 +28,11 @@ function getCurrentPeriod(): number | null {
   // TODO: 測試用 - 強制返回第 3 節，測試完成後請移除此行
   // return 3; // 第 3 節 (10:20-11:10)
   
+  // 使用台灣時區
   const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
+  const taiwanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const hours = taiwanTime.getHours();
+  const minutes = taiwanTime.getMinutes();
   const currentTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
   for (const periodInfo of PERIOD_TIMES) {
@@ -45,8 +47,10 @@ function getCurrentDayOfWeek(): number {
   // TODO: 測試用 - 強制返回週一，測試完成後請移除此行
   // return 0; // 0=週一
   
+  // 使用台灣時區
   const now = new Date();
-  const day = now.getDay();
+  const taiwanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+  const day = taiwanTime.getDay();
   // 轉換為 0=週一, 4=週五 的格式
   return day === 0 ? 6 : day - 1;
 }
@@ -126,6 +130,19 @@ export async function GET(request: Request) {
     const currentPeriod = getCurrentPeriod();
     const currentDayOfWeek = getCurrentDayOfWeek();
 
+    // 獲取台灣時間用於調試
+    const now = new Date();
+    const taiwanTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+    const currentTimeStr = `${taiwanTime.getHours().toString().padStart(2, '0')}:${taiwanTime.getMinutes().toString().padStart(2, '0')}`;
+
+    console.log('狀態查詢:', {
+      userId: targetUserId,
+      currentTime: currentTimeStr,
+      currentPeriod,
+      currentDayOfWeek,
+      totalItems: items.length,
+    });
+
     // 如果是週末
     if (currentDayOfWeek > 4) {
       return NextResponse.json({
@@ -153,6 +170,23 @@ export async function GET(request: Request) {
         currentPeriod >= item.periodStart &&
         currentPeriod <= item.periodEnd
     );
+
+    if (currentClass) {
+      console.log('找到當前課程:', {
+        courseName: currentClass.courseName,
+        location: currentClass.location,
+        periodStart: currentClass.periodStart,
+        periodEnd: currentClass.periodEnd,
+        dayOfWeek: currentClass.dayOfWeek,
+      });
+    } else {
+      console.log('未找到當前時段課程，所有課程:', items.map(item => ({
+        courseName: item.courseName,
+        dayOfWeek: item.dayOfWeek,
+        periodStart: item.periodStart,
+        periodEnd: item.periodEnd,
+      })));
+    }
 
     if (currentClass) {
       return NextResponse.json({
