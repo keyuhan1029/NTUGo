@@ -118,8 +118,19 @@ export class NTUOfficialCalendarSource implements CalendarDataSource {
       ? fields['UID'].trim()
       : `${start.toISOString()}_${summary}`;
 
-    const description = fields['DESCRIPTION']?.trim() || '';
-    const location = fields['LOCATION']?.trim() || '';
+    // 處理 DESCRIPTION 和 LOCATION，移除換行符和轉義字符
+    const description = (fields['DESCRIPTION']?.trim() || '')
+      .replace(/\\n/g, ' ')
+      .replace(/\\,/g, ',')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, '')
+      .trim();
+    const location = (fields['LOCATION']?.trim() || '')
+      .replace(/\\n/g, ' ')
+      .replace(/\\,/g, ',')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, '')
+      .trim();
 
     return {
       id,

@@ -212,7 +212,10 @@ export default function EventList({
                                 wordBreak: 'break-word',
                               }}
                             >
-                              {e.description}
+                              {e.description
+                                .replace(/\\n/g, '\n')
+                                .replace(/\n/g, ' ')
+                                .trim()}
                             </Typography>
                           )}
                         </>
